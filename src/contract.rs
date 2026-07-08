@@ -1,3 +1,6 @@
+use crate::error::EscrowError;
+use crate::storage::write_escrow_state;
+use crate::types::{EscrowState, EscrowStatus};
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
 
 #[contract]
@@ -5,6 +8,24 @@ pub struct PadiPayEscrowContract;
 
 #[contractimpl]
 impl PadiPayEscrowContract {
+    /// Creates a new escrow agreement.
+    pub fn create_escrow(
+        env: Env,
+        buyer: Address,
+        seller: Address,
+        token: Address,
+        amount: i128,
+    ) -> Result<(), EscrowError> {
+        let state = EscrowState {
+            buyer,
+            seller,
+            token,
+            amount,
+            status: EscrowStatus::Created,
+        };
+        write_escrow_state(&env, &state);
+        Ok(())
+    }
     /// Locks funds in the escrow.
     pub fn lock_funds(env: Env, buyer: Address, seller: Address, amount: i128) {
         // TODO: Verify the buyer has authorized the transaction (buyer.require_auth()).

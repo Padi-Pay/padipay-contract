@@ -4,9 +4,35 @@ use soroban_escrow_contracts::{PadiPayEscrowContract, PadiPayEscrowContractClien
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 
 #[test]
+fn test_create_escrow() {
+    let env = Env::default();
+    let contract_id = env.register(PadiPayEscrowContract, ());
+    let client = PadiPayEscrowContractClient::new(&env, &contract_id);
+
+    let buyer = Address::generate(&env);
+    let seller = Address::generate(&env);
+    let token = Address::generate(&env);
+    let amount = 1000;
+
+    client.create_escrow(&buyer, &seller, &token, &amount);
+
+    env.as_contract(&contract_id, || {
+        let state = soroban_escrow_contracts::storage::read_escrow_state(&env).unwrap();
+        assert_eq!(state.buyer, buyer);
+        assert_eq!(state.seller, seller);
+        assert_eq!(state.token, token);
+        assert_eq!(state.amount, amount);
+        assert_eq!(
+            state.status,
+            soroban_escrow_contracts::types::EscrowStatus::Created
+        );
+    });
+}
+
+#[test]
 fn test_lock_funds() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, PadiPayEscrowContract);
+    let contract_id = env.register(PadiPayEscrowContract, ());
     let client = PadiPayEscrowContractClient::new(&env, &contract_id);
 
     let buyer = Address::generate(&env);
