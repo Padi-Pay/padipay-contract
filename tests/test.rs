@@ -189,6 +189,76 @@ fn test_release_funds_already_released() {
 }
 
 #[test]
+fn test_refund() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PadiPayEscrowContract, ());
+    let client = PadiPayEscrowContractClient::new(&env, &contract_id);
+
+    let buyer = Address::generate(&env);
+    let seller = Address::generate(&env);
+    let amount = 1000;
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_contract.address());
+    let token_client_basic = soroban_sdk::token::Client::new(&env, &token_contract.address());
+
+    // Mint tokens to buyer
+    token_client.mint(&buyer, &10000);
+
+    // Create and lock
+    client.create_escrow(&buyer, &seller, &token_contract.address(), &amount);
+    client.lock_funds();
+
+    // Check balance before refund
+    assert_eq!(token_client_basic.balance(&buyer), 9000);
+
+    // Refund
+    client.refund();
+
+    // Check balances after refund
+    assert_eq!(token_client_basic.balance(&contract_id), 0);
+    assert_eq!(token_client_basic.balance(&buyer), 10000);
+
+    env.as_contract(&contract_id, || {
+        let state = soroban_escrow_contracts::storage::read_escrow_state(&env).unwrap();
+        assert_eq!(
+            state.status,
+            soroban_escrow_contracts::types::EscrowStatus::Refunded
+        );
+    });
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #4)")]
+fn test_refund_already_released() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PadiPayEscrowContract, ());
+    let client = PadiPayEscrowContractClient::new(&env, &contract_id);
+
+    let buyer = Address::generate(&env);
+    let seller = Address::generate(&env);
+    let amount = 1000;
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_contract.address());
+
+    token_client.mint(&buyer, &10000);
+
+    client.create_escrow(&buyer, &seller, &token_contract.address(), &amount);
+    client.lock_funds();
+    client.release_funds();
+
+    // Try to refund after released
+    client.refund();
+}
+
+#[test]
 fn test_resolve_dispute() {
     let env = Env::default();
     // TODO: Set up environment, register contract, and mock tokens.

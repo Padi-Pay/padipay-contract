@@ -83,6 +83,27 @@ impl PadiPayEscrowContract {
         Ok(())
     }
 
+    /// Refunds funds back to the buyer.
+    pub fn refund(env: Env) -> Result<(), EscrowError> {
+        let mut state = read_escrow_state(&env)?;
+
+        state.seller.require_auth();
+
+        if state.status != EscrowStatus::Locked {
+            return Err(EscrowError::InvalidState);
+        }
+
+        let token_client = crate::token::get_token_client(&env, &state.token);
+
+        // Transfer from contract back to buyer
+        token_client.transfer(&env.current_contract_address(), &state.buyer, &state.amount);
+
+        state.status = EscrowStatus::Refunded;
+        write_escrow_state(&env, &state);
+
+        Ok(())
+    }
+
     /// Resolves a dispute between buyer and seller.
     pub fn resolve_dispute(env: Env, mediator: Address, outcome: Symbol) {
         // TODO: Verify the mediator has authorized the action and is an approved admin.
