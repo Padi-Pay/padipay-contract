@@ -1,4 +1,4 @@
-use soroban_sdk::contracttype;
+use soroban_sdk::{contracttype, Address};
 
 /// Represents the lifecycle states of an escrow.
 #[contracttype]
@@ -22,4 +22,15 @@ pub enum DataKey {
     Admin,
     /// The escrow state associated with this contract instance.
     State,
+}
+
+/// Represents the state of an escrow agreement.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowState {
+    pub buyer: Address,
+    pub seller: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub status: EscrowStatus,
 }
