@@ -8,9 +8,9 @@ Install Rust using rustup:
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
-Add the `wasm32-unknown-unknown` target (required for compiling Soroban contracts to WebAssembly):
+Add the `wasm32v1-none` target (required for compiling Soroban contracts to WebAssembly):
 ```bash
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32v1-none
 ```
 
 ## 2. Install Stellar CLI
@@ -27,7 +27,7 @@ Compile the contract to WebAssembly:
 ```bash
 stellar contract build
 ```
-This will generate a `.wasm` file in the `target/wasm32-unknown-unknown/release/` directory.
+This will generate a `.wasm` file in the `target/wasm32v1-none/release/` directory.
 
 ## 4. Run Tests
 

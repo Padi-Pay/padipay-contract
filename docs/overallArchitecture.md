@@ -1,5 +1,9 @@
 # Smart Contract Architecture & State Flow
 
+> [!NOTE]
+> **Long-Term Vision**
+> This document outlines the long-term architectural vision and ultimate state machine for the PadiPay platform. It includes features (like delivery confirmation and dispute resolution) that are beyond the scope of the current MVP. For the current MVP implementation details, please see [Architecture & State Flow](architecture.md).
+
 This document outlines the core architecture and state machine for the PadiPay Soroban escrow contracts.
 
 ## Escrow State Machine
