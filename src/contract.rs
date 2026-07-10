@@ -53,7 +53,7 @@ impl PadiPayEscrowContract {
         let token_client = crate::token::get_token_client(&env, &state.token);
 
         // Transfer from buyer to contract
-        token_client.transfer(&state.buyer, &env.current_contract_address(), &state.amount);
+        token_client.transfer(&state.buyer, env.current_contract_address(), &state.amount);
 
         state.status = EscrowStatus::Locked;
         write_escrow_state(&env, &state);
@@ -108,7 +108,7 @@ impl PadiPayEscrowContract {
     }
 
     /// Resolves a dispute between buyer and seller.
-    pub fn resolve_dispute(env: Env, mediator: Address, outcome: Symbol) {
+    pub fn resolve_dispute(_env: Env, _mediator: Address, _outcome: Symbol) {
         // TODO: Verify the mediator has authorized the action and is an approved admin.
         // TODO: Retrieve the escrow state. Ensure it is not already 'Released'.
         // TODO: Parse the `outcome` (e.g., "refund_buyer" or "pay_seller").

@@ -17,12 +17,12 @@ pub enum EscrowStatus {
 impl EscrowStatus {
     /// Validates whether a state transition is legal.
     pub fn is_valid_transition(&self, next: &EscrowStatus) -> bool {
-        match (self, next) {
-            (EscrowStatus::Created, EscrowStatus::Locked) => true,
-            (EscrowStatus::Locked, EscrowStatus::Released) => true,
-            (EscrowStatus::Locked, EscrowStatus::Refunded) => true,
-            _ => false,
-        }
+        matches!(
+            (self, next),
+            (EscrowStatus::Created, EscrowStatus::Locked)
+                | (EscrowStatus::Locked, EscrowStatus::Released)
+                | (EscrowStatus::Locked, EscrowStatus::Refunded)
+        )
     }
 }
 

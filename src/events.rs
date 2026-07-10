@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use crate::types::EscrowState;
 use soroban_sdk::{Env, Symbol};
 
