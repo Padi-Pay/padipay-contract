@@ -8,4 +8,5 @@ pub enum EscrowError {
     InvalidAmount = 2,
     InvalidAddresses = 3,
     InvalidState = 4,
+    AlreadyFunded = 5,
 }
