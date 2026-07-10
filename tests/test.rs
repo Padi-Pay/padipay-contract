@@ -120,6 +120,32 @@ fn test_lock_funds() {
 }
 
 #[test]
+#[should_panic(expected = "HostError: Error(Contract, #5)")]
+fn test_lock_funds_already_funded() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PadiPayEscrowContract, ());
+    let client = PadiPayEscrowContractClient::new(&env, &contract_id);
+
+    let buyer = Address::generate(&env);
+    let seller = Address::generate(&env);
+    let amount = 1000;
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_contract.address());
+
+    token_client.mint(&buyer, &10000);
+
+    client.create_escrow(&buyer, &seller, &token_contract.address(), &amount);
+    client.lock_funds();
+
+    // This should panic with AlreadyFunded
+    client.lock_funds();
+}
+
+#[test]
 fn test_release_funds() {
     let env = Env::default();
     env.mock_all_auths();
