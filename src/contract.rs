@@ -1,6 +1,7 @@
 use crate::error::Error;
-use crate::storage::{read_escrow_state, write_escrow_state};
+use crate::storage::write_escrow_state;
 use crate::types::{EscrowState, EscrowStatus};
+use crate::validation::{require_buyer, require_escrow, require_seller, require_status, require_valid_transition};
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
 
 #[contract]
@@ -37,17 +38,11 @@ impl PadiPayEscrowContract {
     }
     /// Locks funds in the escrow.
     pub fn lock_funds(env: Env) -> Result<(), Error> {
-        let mut state = read_escrow_state(&env)?;
+        let mut state = require_escrow(&env)?;
 
-        state.buyer.require_auth();
-
-        if state.status != EscrowStatus::Created {
-            return Err(Error::EscrowAlreadyFunded);
-        }
-
-        if !state.status.is_valid_transition(&EscrowStatus::Locked) {
-            return Err(Error::InvalidState);
-        }
+        require_buyer(&state);
+        require_status(&state, &EscrowStatus::Created)?;
+        require_valid_transition(&state, &EscrowStatus::Locked)?;
 
         let token_client = crate::token::get_token_client(&env, &state.token);
 
@@ -62,13 +57,10 @@ impl PadiPayEscrowContract {
 
     /// Releases funds to the seller.
     pub fn release_funds(env: Env) -> Result<(), Error> {
-        let mut state = read_escrow_state(&env)?;
+        let mut state = require_escrow(&env)?;
 
-        state.buyer.require_auth();
-
-        if !state.status.is_valid_transition(&EscrowStatus::Released) {
-            return Err(Error::InvalidState);
-        }
+        require_buyer(&state);
+        require_valid_transition(&state, &EscrowStatus::Released)?;
 
         let token_client = crate::token::get_token_client(&env, &state.token);
 
@@ -87,13 +79,10 @@ impl PadiPayEscrowContract {
 
     /// Refunds funds back to the buyer.
     pub fn refund(env: Env) -> Result<(), Error> {
-        let mut state = read_escrow_state(&env)?;
+        let mut state = require_escrow(&env)?;
 
-        state.seller.require_auth();
-
-        if !state.status.is_valid_transition(&EscrowStatus::Refunded) {
-            return Err(Error::InvalidState);
-        }
+        require_seller(&state);
+        require_valid_transition(&state, &EscrowStatus::Refunded)?;
 
         let token_client = crate::token::get_token_client(&env, &state.token);
 
