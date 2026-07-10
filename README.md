@@ -56,7 +56,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 Add the WebAssembly target:
 ```bash
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32v1-none
 ```
 
 ### 2. Install Stellar CLI
@@ -70,7 +70,7 @@ Compile the contract to WebAssembly:
 ```bash
 stellar contract build
 ```
-This will generate a `.wasm` file in the `target/wasm32-unknown-unknown/release/` directory.
+This will generate a `.wasm` file in the `target/wasm32v1-none/release/` directory.
 
 For more details, see the [Setup Guide](docs/setup-guide.md).
 
@@ -87,6 +87,10 @@ To verify the code formatting:
 cargo fmt --all -- --check
 ```
 
+## Deployment Instructions
+
+To deploy the contract to the Stellar Testnet, please see the [Deployment Guide](docs/deployment.md) for detailed commands and necessary environment variables.
+
 ## Roadmap Summary
 
 PadiPay evolves incrementally. Here is a high-level view of our milestones:
@@ -100,6 +104,7 @@ Read the full plan in our [Roadmap](docs/roadmap.md).
 ## Related Repositories and Documentation
 
 - [Contributing Guidelines](docs/contributing.md)
-- [Architecture & State Flow](docs/architecture.md)
+- [Architecture & State Flow (MVP)](docs/architecture.md)
+- [Long-Term Architectural Vision](docs/overallArchitecture.md)
 - [Setup Guide](docs/setup-guide.md)
 - [Full Roadmap](docs/roadmap.md)

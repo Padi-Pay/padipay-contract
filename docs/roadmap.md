@@ -75,9 +75,9 @@ Deliver a deployable escrow contract demonstrating the complete happy path on St
 
 ### Developer Experience
 
-* [ ] Improved README
-* [ ] GitHub Actions CI
-* [ ] Testnet deployment
+* [x] Improved README
+* [x] GitHub Actions CI
+* [x] Testnet deployment
 * [ ] Release notes
 
 ---
