@@ -48,7 +48,7 @@ fn test_create_escrow_unauthorized() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #2)")]
+#[should_panic(expected = "HostError: Error(Contract, #4)")]
 fn test_create_escrow_invalid_amount() {
     let env = Env::default();
     env.mock_all_auths();
@@ -64,7 +64,7 @@ fn test_create_escrow_invalid_amount() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #3)")]
+#[should_panic(expected = "HostError: Error(Contract, #6)")]
 fn test_create_escrow_invalid_addresses() {
     let env = Env::default();
     env.mock_all_auths();
@@ -188,7 +188,7 @@ fn test_release_funds() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #4)")]
+#[should_panic(expected = "HostError: Error(Contract, #2)")]
 fn test_release_funds_already_released() {
     let env = Env::default();
     env.mock_all_auths();
@@ -258,7 +258,7 @@ fn test_refund() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #4)")]
+#[should_panic(expected = "HostError: Error(Contract, #2)")]
 fn test_refund_already_released() {
     let env = Env::default();
     env.mock_all_auths();

@@ -3,10 +3,11 @@ use soroban_sdk::contracterror;
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
-pub enum EscrowError {
-    NotFound = 1,
-    InvalidAmount = 2,
-    InvalidAddresses = 3,
-    InvalidState = 4,
-    AlreadyFunded = 5,
+pub enum Error {
+    Unauthorized = 1,
+    InvalidState = 2,
+    EscrowNotFound = 3,
+    InvalidAmount = 4,
+    EscrowAlreadyFunded = 5,
+    InvalidAddresses = 6,
 }

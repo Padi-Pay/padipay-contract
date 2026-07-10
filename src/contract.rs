@@ -1,4 +1,4 @@
-use crate::error::EscrowError;
+use crate::error::Error;
 use crate::storage::{read_escrow_state, write_escrow_state};
 use crate::types::{EscrowState, EscrowStatus};
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
@@ -15,14 +15,14 @@ impl PadiPayEscrowContract {
         seller: Address,
         token: Address,
         amount: i128,
-    ) -> Result<(), EscrowError> {
+    ) -> Result<(), Error> {
         buyer.require_auth();
 
         if amount <= 0 {
-            return Err(EscrowError::InvalidAmount);
+            return Err(Error::InvalidAmount);
         }
         if buyer == seller {
-            return Err(EscrowError::InvalidAddresses);
+            return Err(Error::InvalidAddresses);
         }
 
         let state = EscrowState {
@@ -36,17 +36,17 @@ impl PadiPayEscrowContract {
         Ok(())
     }
     /// Locks funds in the escrow.
-    pub fn lock_funds(env: Env) -> Result<(), EscrowError> {
+    pub fn lock_funds(env: Env) -> Result<(), Error> {
         let mut state = read_escrow_state(&env)?;
 
         state.buyer.require_auth();
 
         if state.status != EscrowStatus::Created {
-            return Err(EscrowError::AlreadyFunded);
+            return Err(Error::EscrowAlreadyFunded);
         }
 
         if !state.status.is_valid_transition(&EscrowStatus::Locked) {
-            return Err(EscrowError::InvalidState);
+            return Err(Error::InvalidState);
         }
 
         let token_client = crate::token::get_token_client(&env, &state.token);
@@ -61,13 +61,13 @@ impl PadiPayEscrowContract {
     }
 
     /// Releases funds to the seller.
-    pub fn release_funds(env: Env) -> Result<(), EscrowError> {
+    pub fn release_funds(env: Env) -> Result<(), Error> {
         let mut state = read_escrow_state(&env)?;
 
         state.buyer.require_auth();
 
         if !state.status.is_valid_transition(&EscrowStatus::Released) {
-            return Err(EscrowError::InvalidState);
+            return Err(Error::InvalidState);
         }
 
         let token_client = crate::token::get_token_client(&env, &state.token);
@@ -86,13 +86,13 @@ impl PadiPayEscrowContract {
     }
 
     /// Refunds funds back to the buyer.
-    pub fn refund(env: Env) -> Result<(), EscrowError> {
+    pub fn refund(env: Env) -> Result<(), Error> {
         let mut state = read_escrow_state(&env)?;
 
         state.seller.require_auth();
 
         if !state.status.is_valid_transition(&EscrowStatus::Refunded) {
-            return Err(EscrowError::InvalidState);
+            return Err(Error::InvalidState);
         }
 
         let token_client = crate::token::get_token_client(&env, &state.token);

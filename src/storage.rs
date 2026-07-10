@@ -1,13 +1,13 @@
-use crate::error::EscrowError;
+use crate::error::Error;
 use crate::types::{DataKey, EscrowState};
 use soroban_sdk::Env;
 
 /// Reads the escrow state from storage.
-pub fn read_escrow_state(env: &Env) -> Result<EscrowState, EscrowError> {
+pub fn read_escrow_state(env: &Env) -> Result<EscrowState, Error> {
     env.storage()
         .instance()
         .get(&DataKey::State)
-        .ok_or(EscrowError::NotFound)
+        .ok_or(Error::EscrowNotFound)
 }
 
 /// Writes the escrow state to storage.
@@ -16,16 +16,16 @@ pub fn write_escrow_state(env: &Env, state: &EscrowState) {
 }
 
 /// Updates the escrow state in storage, ensuring it already exists.
-pub fn update_escrow_state(env: &Env, state: &EscrowState) -> Result<(), EscrowError> {
+pub fn update_escrow_state(env: &Env, state: &EscrowState) -> Result<(), Error> {
     if !env.storage().instance().has(&DataKey::State) {
-        return Err(EscrowError::NotFound);
+        return Err(Error::EscrowNotFound);
     }
     write_escrow_state(env, state);
     Ok(())
 }
 
 /// Verifies that the seller has authorized the current invocation.
-pub fn verify_seller(env: &Env) -> Result<(), EscrowError> {
+pub fn verify_seller(env: &Env) -> Result<(), Error> {
     let state = read_escrow_state(env)?;
     state.seller.require_auth();
     Ok(())
@@ -56,10 +56,10 @@ mod test {
             };
 
             // Initially not found
-            assert_eq!(read_escrow_state(&env), Err(EscrowError::NotFound));
+            assert_eq!(read_escrow_state(&env), Err(Error::EscrowNotFound));
             assert_eq!(
                 update_escrow_state(&env, &state),
-                Err(EscrowError::NotFound)
+                Err(Error::EscrowNotFound)
             );
 
             // Write and read
