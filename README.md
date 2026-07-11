@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/Padi-Pay/padipay-frontend/main/web/public/logo.png" alt="PadiPay Logo" width="200" />
 
-  # PadiPay Ecosystem Portal
+  # PadiPay Contracts
   
   **"Trade with confidence, even with people you've never met."**
 
