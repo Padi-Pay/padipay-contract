@@ -93,7 +93,7 @@ fn test_create_escrow_unauthorized() {
     let amount = 1000;
 
     // This should panic because buyer didn't authorize
-    let escrow_id = setup
+    let _escrow_id = setup
         .client
         .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
 }
@@ -106,7 +106,7 @@ fn test_create_escrow_invalid_amount() {
     let setup = setup_test(&env);
     let amount = 0; // Invalid amount
 
-    let escrow_id = setup
+    let _escrow_id = setup
         .client
         .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
 }
