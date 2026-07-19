@@ -111,7 +111,7 @@ Introduce the Human-in-the-Loop dispute resolution layer that powers PadiPay's t
 * Oracle registry
 * Dispute creation
 * Evidence submission
-* Dispute resolution
+* [x] Dispute resolution
 * Oracle authorization
 * Dispute events
 * Administrative tooling

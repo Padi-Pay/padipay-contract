@@ -109,11 +109,29 @@ impl PadiPayEscrowContract {
     }
 
     /// Resolves a dispute between buyer and seller.
-    pub fn resolve_dispute(_env: Env, _escrow_id: EscrowId, _mediator: Address, _outcome: Symbol) {
+    pub fn resolve_dispute(env: Env, escrow_id: EscrowId, _mediator: Address, outcome: Symbol) {
         // TODO: Verify the mediator has authorized the action and is an approved admin.
-        // TODO: Retrieve the escrow state. Ensure it is not already 'Released'.
-        // TODO: Parse the `outcome` (e.g., "refund_buyer" or "pay_seller").
-        // TODO: Transfer funds accordingly and update the state to terminal.
+
+        let mut state = require_escrow(&env, escrow_id).unwrap();
+
+        let token_client = crate::token::get_token_client(&env, &state.token);
+
+        if outcome == Symbol::new(&env, "refund_buyer") {
+            token_client.transfer(&env.current_contract_address(), &state.buyer, &state.amount);
+            state.status = EscrowStatus::Refunded;
+        } else if outcome == Symbol::new(&env, "pay_seller") {
+            token_client.transfer(
+                &env.current_contract_address(),
+                &state.seller,
+                &state.amount,
+            );
+            state.status = EscrowStatus::Released;
+        } else {
+            panic!("Invalid outcome");
+        }
+
+        write_escrow_state(&env, escrow_id, &state);
+
         // TODO: Emit an event detailing the dispute resolution.
     }
 }

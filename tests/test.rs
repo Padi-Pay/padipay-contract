@@ -343,12 +343,103 @@ fn test_refund_already_released() {
 }
 
 #[test]
-fn test_resolve_dispute() {
-    let _env = Env::default();
-    // TODO: Set up environment, register contract, and mock tokens.
-    // TODO: Lock funds first.
-    // TODO: Call client.resolve_dispute(&mediator, &Symbol::new(&env, "refund_buyer")).
-    // TODO: Assert that the funds were routed correctly based on the outcome.
+fn test_resolve_dispute_refund_buyer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+    let mediator = Address::generate(&env);
+
+    // Mint tokens and lock funds
+    setup.token_client.mint(&setup.buyer, &10000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+
+    // Verify balance before resolution
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 1000);
+    assert_eq!(setup.token_client_basic.balance(&setup.buyer), 9000);
+
+    // Resolve dispute: refund_buyer
+    setup
+        .client
+        .resolve_dispute(&escrow_id, &mediator, &Symbol::new(&env, "refund_buyer"));
+
+    // Verify balance after resolution
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 0);
+    assert_eq!(setup.token_client_basic.balance(&setup.buyer), 10000);
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 0);
+
+    // Verify state is persisted and updated to Refunded
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::storage::read_escrow_state(&env, escrow_id).unwrap();
+        assert_eq!(
+            state.status,
+            soroban_escrow_contracts::types::EscrowStatus::Refunded
+        );
+    });
+}
+
+#[test]
+fn test_resolve_dispute_pay_seller() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+    let mediator = Address::generate(&env);
+
+    // Mint tokens and lock funds
+    setup.token_client.mint(&setup.buyer, &10000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+
+    // Verify balance before resolution
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 1000);
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 0);
+
+    // Resolve dispute: pay_seller
+    setup
+        .client
+        .resolve_dispute(&escrow_id, &mediator, &Symbol::new(&env, "pay_seller"));
+
+    // Verify balance after resolution
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 0);
+    assert_eq!(setup.token_client_basic.balance(&setup.buyer), 9000);
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 1000);
+
+    // Verify state is persisted and updated to Released
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::storage::read_escrow_state(&env, escrow_id).unwrap();
+        assert_eq!(
+            state.status,
+            soroban_escrow_contracts::types::EscrowStatus::Released
+        );
+    });
+}
+
+#[test]
+#[should_panic(expected = "Invalid outcome")]
+fn test_resolve_dispute_invalid_outcome() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+    let mediator = Address::generate(&env);
+
+    // Mint tokens and lock funds
+    setup.token_client.mint(&setup.buyer, &10000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+
+    // Resolve dispute with invalid outcome
+    setup
+        .client
+        .resolve_dispute(&escrow_id, &mediator, &Symbol::new(&env, "invalid_out"));
 }
 
 #[test]
