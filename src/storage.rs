@@ -2,6 +2,22 @@ use crate::error::Error;
 use crate::types::{DataKey, EscrowId, EscrowState};
 use soroban_sdk::Env;
 
+pub const DAY_IN_LEDGERS: u32 = 17280;
+pub const BUMP_AMOUNT: u32 = 30 * DAY_IN_LEDGERS;
+pub const LIFETIME_THRESHOLD: u32 = BUMP_AMOUNT - DAY_IN_LEDGERS;
+
+/// Extends the TTL for instance storage.
+pub fn extend_instance_ttl(env: &Env) {
+    env.storage().instance().extend_ttl(LIFETIME_THRESHOLD, BUMP_AMOUNT);
+}
+
+/// Extends the TTL for a given persistent storage key.
+pub fn extend_persistent_ttl(env: &Env, key: &DataKey) {
+    env.storage()
+        .persistent()
+        .extend_ttl(key, LIFETIME_THRESHOLD, BUMP_AMOUNT);
+}
+
 /// Reads the escrow state from storage.
 pub fn read_escrow_state(env: &Env, id: EscrowId) -> Result<EscrowState, Error> {
     env.storage()
@@ -12,7 +28,9 @@ pub fn read_escrow_state(env: &Env, id: EscrowId) -> Result<EscrowState, Error> 
 
 /// Writes the escrow state to storage.
 pub fn write_escrow_state(env: &Env, id: EscrowId, state: &EscrowState) {
-    env.storage().persistent().set(&DataKey::Escrow(id), state);
+    let key = DataKey::Escrow(id);
+    env.storage().persistent().set(&key, state);
+    extend_persistent_ttl(env, &key);
 }
 
 /// Updates the escrow state in storage, ensuring it already exists.
