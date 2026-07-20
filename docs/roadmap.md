@@ -127,7 +127,7 @@ Prepare the contract for broader ecosystem adoption.
 * Milestone-based escrow
 * Partial fund releases
 * Configurable protocol fees
-* Multi-party escrow
+* Multi-party escrow,
 * Contract upgrade strategy
 * Indexing support
 * SDK improvements

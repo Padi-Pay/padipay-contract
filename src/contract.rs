@@ -2,8 +2,10 @@ use crate::error::Error;
 use crate::events::{
     publish_escrow_created, publish_escrow_refunded, publish_funds_locked, publish_funds_released,
 };
-use crate::storage::{increment_nonce, write_escrow_state};
-use crate::types::{EscrowId, EscrowState, EscrowStatus};
+use crate::storage::{
+    extend_instance_ttl, extend_persistent_ttl, increment_nonce, write_escrow_state,
+};
+use crate::types::{DataKey, EscrowId, EscrowState, EscrowStatus};
 use crate::validation::{
     require_buyer, require_escrow, require_seller, require_status, require_valid_transition,
 };
@@ -40,6 +42,10 @@ impl PadiPayEscrowContract {
         };
         let id = increment_nonce(&env);
         write_escrow_state(&env, id, &state);
+
+        extend_instance_ttl(&env);
+        extend_persistent_ttl(&env, &DataKey::Escrow(id));
+
         publish_escrow_created(&env, id, &state);
         Ok(id)
     }
@@ -58,6 +64,9 @@ impl PadiPayEscrowContract {
 
         state.status = EscrowStatus::Locked;
         write_escrow_state(&env, escrow_id, &state);
+
+        extend_instance_ttl(&env);
+        extend_persistent_ttl(&env, &DataKey::Escrow(escrow_id));
 
         publish_funds_locked(&env, escrow_id, &state);
 
@@ -83,6 +92,9 @@ impl PadiPayEscrowContract {
         state.status = EscrowStatus::Released;
         write_escrow_state(&env, escrow_id, &state);
 
+        extend_instance_ttl(&env);
+        extend_persistent_ttl(&env, &DataKey::Escrow(escrow_id));
+
         publish_funds_released(&env, escrow_id, &state);
 
         Ok(())
@@ -102,6 +114,9 @@ impl PadiPayEscrowContract {
 
         state.status = EscrowStatus::Refunded;
         write_escrow_state(&env, escrow_id, &state);
+
+        extend_instance_ttl(&env);
+        extend_persistent_ttl(&env, &DataKey::Escrow(escrow_id));
 
         publish_escrow_refunded(&env, escrow_id, &state);
 
@@ -131,6 +146,9 @@ impl PadiPayEscrowContract {
         }
 
         write_escrow_state(&env, escrow_id, &state);
+
+        extend_instance_ttl(&env);
+        extend_persistent_ttl(&env, &DataKey::Escrow(escrow_id));
 
         // TODO: Emit an event detailing the dispute resolution.
     }

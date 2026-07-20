@@ -2,6 +2,29 @@ use crate::error::Error;
 use crate::types::{DataKey, EscrowId, EscrowState};
 use soroban_sdk::Env;
 
+// ~30 days in ledgers (assuming 5s per ledger)
+const DAY_IN_LEDGERS: u32 = 17_280;
+const INSTANCE_BUMP_AMOUNT: u32 = 30 * DAY_IN_LEDGERS;
+const INSTANCE_LIFETIME_THRESHOLD: u32 = 14 * DAY_IN_LEDGERS;
+const PERSISTENT_BUMP_AMOUNT: u32 = 30 * DAY_IN_LEDGERS;
+const PERSISTENT_LIFETIME_THRESHOLD: u32 = 14 * DAY_IN_LEDGERS;
+
+/// Extends the TTL of the instance storage.
+pub fn extend_instance_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+}
+
+/// Extends the TTL of a persistent storage entry.
+pub fn extend_persistent_ttl(env: &Env, key: &DataKey) {
+    env.storage().persistent().extend_ttl(
+        key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
 /// Reads the escrow state from storage.
 pub fn read_escrow_state(env: &Env, id: EscrowId) -> Result<EscrowState, Error> {
     env.storage()
