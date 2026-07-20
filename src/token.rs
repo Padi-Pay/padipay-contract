@@ -5,6 +5,12 @@ pub fn get_token_client<'a>(env: &'a Env, token: &Address) -> token::Client<'a> 
     token::Client::new(env, token)
 }
 
+/// Initializes a token client and performs a transfer.
+pub fn transfer(env: &Env, token: &Address, from: &Address, to: &Address, amount: &i128) {
+    let client = get_token_client(env, token);
+    client.transfer(from, to, amount);
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -18,3 +24,4 @@ mod test {
         assert_eq!(client.address, token_addr);
     }
 }
+
