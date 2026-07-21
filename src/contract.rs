@@ -7,7 +7,8 @@ use crate::storage::{
 };
 use crate::types::{DataKey, EscrowId, EscrowState, EscrowStatus};
 use crate::validation::{
-    require_buyer, require_escrow, require_seller, require_status, require_valid_transition,
+    require_admin, require_buyer, require_buyer_auth, require_escrow, require_seller,
+    require_status, require_valid_transition,
 };
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
 
@@ -24,7 +25,7 @@ impl PadiPayEscrowContract {
         token: Address,
         amount: i128,
     ) -> Result<EscrowId, Error> {
-        buyer.require_auth();
+        require_buyer_auth(&buyer);
 
         if amount <= 0 {
             return Err(Error::InvalidAmount);
@@ -123,9 +124,8 @@ impl PadiPayEscrowContract {
         Ok(())
     }
 
-    /// Resolves a dispute between buyer and seller.
-    pub fn resolve_dispute(env: Env, escrow_id: EscrowId, _mediator: Address, outcome: Symbol) {
-        // TODO: Verify the mediator has authorized the action and is an approved admin.
+    pub fn resolve_dispute(env: Env, escrow_id: EscrowId, mediator: Address, outcome: Symbol) {
+        require_admin(&mediator);
 
         let mut state = require_escrow(&env, escrow_id).unwrap();
 
