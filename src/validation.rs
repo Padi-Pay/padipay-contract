@@ -1,11 +1,16 @@
 use crate::error::Error;
 use crate::storage::read_escrow_state;
 use crate::types::{EscrowId, EscrowState, EscrowStatus};
-use soroban_sdk::Env;
+use soroban_sdk::{Address, Env};
 
 /// Validates escrow existence and retrieves the state.
 pub fn require_escrow(env: &Env, id: EscrowId) -> Result<EscrowState, Error> {
     read_escrow_state(env, id)
+}
+
+/// Validates that the buyer has authorized the escrow creation.
+pub fn require_buyer_auth(buyer: &Address) {
+    buyer.require_auth();
 }
 
 /// Validates escrow ownership by the buyer.
@@ -16,6 +21,11 @@ pub fn require_buyer(state: &EscrowState) {
 /// Validates escrow ownership by the seller.
 pub fn require_seller(state: &EscrowState) {
     state.seller.require_auth();
+}
+
+/// Validates that the administrator/mediator has authorized the transaction.
+pub fn require_admin(admin: &Address) {
+    admin.require_auth();
 }
 
 /// Validates the current escrow status exactly matches the expected status.

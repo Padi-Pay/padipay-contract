@@ -7,7 +7,8 @@ use crate::storage::{
 };
 use crate::types::{DataKey, EscrowId, EscrowState, EscrowStatus};
 use crate::validation::{
-    require_buyer, require_escrow, require_seller, require_status, require_valid_transition,
+    require_admin, require_buyer, require_buyer_auth, require_escrow, require_seller,
+    require_status, require_valid_transition,
 };
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
 
@@ -24,7 +25,7 @@ impl PadiPayEscrowContract {
         token: Address,
         amount: i128,
     ) -> Result<EscrowId, Error> {
-        buyer.require_auth();
+        require_buyer_auth(&buyer);
 
         if amount <= 0 {
             return Err(Error::InvalidAmount);
@@ -57,14 +58,10 @@ impl PadiPayEscrowContract {
         require_status(&state, &EscrowStatus::Created)?;
         require_valid_transition(&state, &EscrowStatus::Locked)?;
 
+        let token_client = crate::token::get_token_client(&env, &state.token);
+
         // Transfer from buyer to contract
-        crate::token::transfer(
-            &env,
-            &state.token,
-            &state.buyer,
-            &env.current_contract_address(),
-            &state.amount,
-        );
+        token_client.transfer(&state.buyer, env.current_contract_address(), &state.amount);
 
         state.status = EscrowStatus::Locked;
         write_escrow_state(&env, escrow_id, &state);
@@ -84,10 +81,10 @@ impl PadiPayEscrowContract {
         require_buyer(&state);
         require_valid_transition(&state, &EscrowStatus::Released)?;
 
+        let token_client = crate::token::get_token_client(&env, &state.token);
+
         // Transfer from contract to seller
-        crate::token::transfer(
-            &env,
-            &state.token,
+        token_client.transfer(
             &env.current_contract_address(),
             &state.seller,
             &state.amount,
@@ -111,14 +108,10 @@ impl PadiPayEscrowContract {
         require_seller(&state);
         require_valid_transition(&state, &EscrowStatus::Refunded)?;
 
+        let token_client = crate::token::get_token_client(&env, &state.token);
+
         // Transfer from contract back to buyer
-        crate::token::transfer(
-            &env,
-            &state.token,
-            &env.current_contract_address(),
-            &state.buyer,
-            &state.amount,
-        );
+        token_client.transfer(&env.current_contract_address(), &state.buyer, &state.amount);
 
         state.status = EscrowStatus::Refunded;
         write_escrow_state(&env, escrow_id, &state);
@@ -131,25 +124,18 @@ impl PadiPayEscrowContract {
         Ok(())
     }
 
-    /// Resolves a dispute between buyer and seller.
-    pub fn resolve_dispute(env: Env, escrow_id: EscrowId, _mediator: Address, outcome: Symbol) {
-        // TODO: Verify the mediator has authorized the action and is an approved admin.
+    pub fn resolve_dispute(env: Env, escrow_id: EscrowId, mediator: Address, outcome: Symbol) {
+        require_admin(&mediator);
 
         let mut state = require_escrow(&env, escrow_id).unwrap();
 
+        let token_client = crate::token::get_token_client(&env, &state.token);
+
         if outcome == Symbol::new(&env, "refund_buyer") {
-            crate::token::transfer(
-                &env,
-                &state.token,
-                &env.current_contract_address(),
-                &state.buyer,
-                &state.amount,
-            );
+            token_client.transfer(&env.current_contract_address(), &state.buyer, &state.amount);
             state.status = EscrowStatus::Refunded;
         } else if outcome == Symbol::new(&env, "pay_seller") {
-            crate::token::transfer(
-                &env,
-                &state.token,
+            token_client.transfer(
                 &env.current_contract_address(),
                 &state.seller,
                 &state.amount,
