@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 use crate::types::{EscrowId, EscrowState};
-use soroban_sdk::{Env, Symbol};
+use soroban_sdk::{Address, Env, Symbol};
 
 pub fn publish_escrow_created(env: &Env, escrow_id: EscrowId, state: &EscrowState) {
     let topics = (Symbol::new(env, "EscrowCreated"), escrow_id);
@@ -20,4 +20,16 @@ pub fn publish_funds_released(env: &Env, escrow_id: EscrowId, state: &EscrowStat
 pub fn publish_escrow_refunded(env: &Env, escrow_id: EscrowId, state: &EscrowState) {
     let topics = (Symbol::new(env, "EscrowRefunded"), escrow_id);
     env.events().publish(topics, state.clone());
+}
+
+pub fn publish_dispute_resolved(
+    env: &Env,
+    escrow_id: EscrowId,
+    state: &EscrowState,
+    mediator: &Address,
+    outcome: &Symbol,
+) {
+    let topics = (Symbol::new(env, "EscrowDisputeResolved"), escrow_id);
+    env.events()
+        .publish(topics, (state.clone(), mediator.clone(), outcome.clone()));
 }

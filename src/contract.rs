@@ -1,14 +1,15 @@
 use crate::error::Error;
 use crate::events::{
-    publish_escrow_created, publish_escrow_refunded, publish_funds_locked, publish_funds_released,
+    publish_dispute_resolved, publish_escrow_created, publish_escrow_refunded,
+    publish_funds_locked, publish_funds_released,
 };
 use crate::storage::{
     extend_instance_ttl, extend_persistent_ttl, increment_nonce, write_escrow_state,
 };
 use crate::types::{DataKey, EscrowId, EscrowState, EscrowStatus};
 use crate::validation::{
-    require_admin, require_buyer, require_buyer_auth, require_escrow, require_seller,
-    require_status, require_valid_transition,
+    require_admin, require_buyer, require_buyer_auth, require_escrow, require_not_terminal,
+    require_seller, require_status, require_valid_transition,
 };
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
 
@@ -124,10 +125,16 @@ impl PadiPayEscrowContract {
         Ok(())
     }
 
-    pub fn resolve_dispute(env: Env, escrow_id: EscrowId, mediator: Address, outcome: Symbol) {
+    pub fn resolve_dispute(
+        env: Env,
+        escrow_id: EscrowId,
+        mediator: Address,
+        outcome: Symbol,
+    ) -> Result<(), Error> {
         require_admin(&mediator);
 
-        let mut state = require_escrow(&env, escrow_id).unwrap();
+        let mut state = require_escrow(&env, escrow_id)?;
+        require_not_terminal(&state)?;
 
         let token_client = crate::token::get_token_client(&env, &state.token);
 
@@ -150,6 +157,8 @@ impl PadiPayEscrowContract {
         extend_instance_ttl(&env);
         extend_persistent_ttl(&env, &DataKey::Escrow(escrow_id));
 
-        // TODO: Emit an event detailing the dispute resolution.
+        publish_dispute_resolved(&env, escrow_id, &state, &mediator, &outcome);
+
+        Ok(())
     }
 }

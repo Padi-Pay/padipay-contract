@@ -450,6 +450,115 @@ fn test_resolve_dispute_invalid_outcome() {
 }
 
 #[test]
+#[should_panic(expected = "HostError: Error(Auth, InvalidAction)")]
+fn test_resolve_dispute_unauthorized() {
+    let escrow_id = 0;
+    let env = Env::default();
+    let setup = setup_test(&env);
+    let mediator = Address::generate(&env);
+
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::types::EscrowState {
+            buyer: setup.buyer.clone(),
+            seller: setup.seller.clone(),
+            token: setup.token.clone(),
+            amount: 1000,
+            status: soroban_escrow_contracts::types::EscrowStatus::Locked,
+        };
+        soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
+    });
+
+    // No auths are mocked, so the mediator has not authorized this call.
+    setup
+        .client
+        .resolve_dispute(&escrow_id, &mediator, &Symbol::new(&env, "refund_buyer"));
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #2)")]
+fn test_resolve_dispute_already_released() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+    let mediator = Address::generate(&env);
+
+    setup.token_client.mint(&setup.buyer, &10000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+    setup.client.release_funds(&escrow_id);
+
+    // Escrow is already terminal (Released) - dispute must be rejected.
+    setup
+        .client
+        .resolve_dispute(&escrow_id, &mediator, &Symbol::new(&env, "refund_buyer"));
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #2)")]
+fn test_resolve_dispute_already_refunded() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+    let mediator = Address::generate(&env);
+
+    setup.token_client.mint(&setup.buyer, &10000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+    setup.client.refund(&escrow_id);
+
+    // Escrow is already terminal (Refunded) - dispute must be rejected.
+    setup
+        .client
+        .resolve_dispute(&escrow_id, &mediator, &Symbol::new(&env, "pay_seller"));
+}
+
+#[test]
+fn test_resolve_dispute_emits_distinct_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+    let mediator = Address::generate(&env);
+
+    setup.token_client.mint(&setup.buyer, &10000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+
+    let outcome = Symbol::new(&env, "refund_buyer");
+    setup
+        .client
+        .resolve_dispute(&escrow_id, &mediator, &outcome);
+
+    let expected_state = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Refunded,
+    };
+    let events = env.events().all().filter_by_contract(&setup.contract_id);
+    assert_eq!(
+        events,
+        vec![
+            &env,
+            (
+                setup.contract_id.clone(),
+                (Symbol::new(&env, "EscrowDisputeResolved"), escrow_id,).into_val(&env),
+                (expected_state, mediator, outcome).into_val(&env)
+            )
+        ]
+    );
+}
+
+#[test]
 fn test_escrow_lifecycle_happy_path_release() {
     let env = Env::default();
     env.mock_all_auths();
