@@ -1,6 +1,6 @@
 use crate::error::Error;
 use crate::types::{DataKey, EscrowId, EscrowState};
-use soroban_sdk::Env;
+use soroban_sdk::{Address, Env};
 
 // ~30 days in ledgers (assuming 5s per ledger)
 const DAY_IN_LEDGERS: u32 = 17_280;
@@ -45,6 +45,22 @@ pub fn update_escrow_state(env: &Env, id: EscrowId, state: &EscrowState) -> Resu
     }
     write_escrow_state(env, id, state);
     Ok(())
+}
+
+/// Writes the protocol fee rate and treasury address to instance storage.
+pub fn write_fee_config(env: &Env, rate: u32, treasury: &Address) {
+    env.storage().instance().set(&DataKey::FeeRate, &rate);
+    env.storage().instance().set(&DataKey::Treasury, treasury);
+}
+
+/// Reads the protocol fee rate from instance storage.
+pub fn read_fee_rate(env: &Env) -> Option<u32> {
+    env.storage().instance().get(&DataKey::FeeRate)
+}
+
+/// Reads the treasury address from instance storage.
+pub fn read_treasury(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::Treasury)
 }
 
 /// Generates a monotonically increasing, unique Escrow ID.

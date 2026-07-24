@@ -5,11 +5,12 @@ use crate::events::{
 };
 use crate::storage::{
     extend_instance_ttl, extend_persistent_ttl, increment_nonce, write_escrow_state,
+    write_fee_config,
 };
 use crate::types::{DataKey, EscrowId, EscrowState, EscrowStatus};
 use crate::validation::{
     require_admin, require_buyer, require_buyer_auth, require_escrow, require_not_terminal,
-    require_seller, require_status, require_valid_transition,
+    require_seller, require_status, require_valid_fee_rate, require_valid_transition,
 };
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
 
@@ -158,6 +159,23 @@ impl PadiPayEscrowContract {
         extend_persistent_ttl(&env, &DataKey::Escrow(escrow_id));
 
         publish_dispute_resolved(&env, escrow_id, &state, &mediator, &outcome);
+
+        Ok(())
+    }
+
+    /// Configures the protocol fee rate and treasury destination.
+    pub fn set_fee_config(
+        env: Env,
+        admin: Address,
+        rate: u32,
+        treasury: Address,
+    ) -> Result<(), Error> {
+        require_admin(&admin);
+        require_valid_fee_rate(rate)?;
+
+        write_fee_config(&env, rate, &treasury);
+
+        extend_instance_ttl(&env);
 
         Ok(())
     }

@@ -1035,3 +1035,93 @@ fn test_resolve_dispute_ttl_extension() {
         assert_eq!(instance_ttl, expected_ttl);
     });
 }
+
+#[test]
+fn test_set_fee_config() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    setup.client.set_fee_config(&admin, &250, &treasury);
+
+    env.as_contract(&setup.contract_id, || {
+        assert_eq!(
+            soroban_escrow_contracts::storage::read_fee_rate(&env),
+            Some(250)
+        );
+        assert_eq!(
+            soroban_escrow_contracts::storage::read_treasury(&env),
+            Some(treasury.clone())
+        );
+    });
+}
+
+#[test]
+fn test_set_fee_config_updates_existing_config() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+    let treasury_a = Address::generate(&env);
+    let treasury_b = Address::generate(&env);
+
+    setup.client.set_fee_config(&admin, &100, &treasury_a);
+    setup.client.set_fee_config(&admin, &500, &treasury_b);
+
+    env.as_contract(&setup.contract_id, || {
+        assert_eq!(
+            soroban_escrow_contracts::storage::read_fee_rate(&env),
+            Some(500)
+        );
+        assert_eq!(
+            soroban_escrow_contracts::storage::read_treasury(&env),
+            Some(treasury_b.clone())
+        );
+    });
+}
+
+#[test]
+fn test_set_fee_config_allows_max_rate() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    // 1000 basis points (10%) is the maximum allowed rate.
+    setup.client.set_fee_config(&admin, &1000, &treasury);
+
+    env.as_contract(&setup.contract_id, || {
+        assert_eq!(
+            soroban_escrow_contracts::storage::read_fee_rate(&env),
+            Some(1000)
+        );
+    });
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #7)")]
+fn test_set_fee_config_exceeds_max_rate() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    // 1001 basis points exceeds the 1000 (10%) maximum.
+    setup.client.set_fee_config(&admin, &1001, &treasury);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Auth, InvalidAction)")]
+fn test_set_fee_config_unauthorized() {
+    let env = Env::default();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    // No auths are mocked, so the admin has not authorized this call.
+    setup.client.set_fee_config(&admin, &250, &treasury);
+}

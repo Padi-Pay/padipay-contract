@@ -58,6 +58,17 @@ pub fn require_not_terminal(state: &EscrowState) -> Result<(), Error> {
     Ok(())
 }
 
+/// The maximum protocol fee rate, in basis points (10%).
+pub const MAX_FEE_RATE_BPS: u32 = 1000;
+
+/// Validates that a fee rate does not exceed the protocol maximum.
+pub fn require_valid_fee_rate(rate: u32) -> Result<(), Error> {
+    if rate > MAX_FEE_RATE_BPS {
+        return Err(Error::InvalidFeeRate);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

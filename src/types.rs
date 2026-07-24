@@ -38,6 +38,10 @@ pub enum DataKey {
     Escrow(EscrowId),
     /// The nonce used to generate unique escrow IDs.
     EscrowNonce,
+    /// The protocol fee rate, in basis points (e.g. 100 = 1%).
+    FeeRate,
+    /// The treasury address that receives collected protocol fees.
+    Treasury,
 }
 
 #[cfg(test)]
