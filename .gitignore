@@ -14,4 +14,5 @@ target/
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
-
+# Auto-generated test ledger snapshots
+test_snapshots/
