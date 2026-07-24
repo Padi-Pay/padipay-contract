@@ -1,3 +1,4 @@
+use crate::error::Error;
 use soroban_sdk::{token, Address, Env};
 
 /// Creates a token client for the specified token contract address.
@@ -102,6 +103,17 @@ pub fn transfer_from(
     }
     let client = get_token_client(env, token);
     client.transfer_from(spender, from, to, amount);
+}
+
+/// Calculates the protocol fee for an amount, given a rate in basis points
+/// (e.g. 100 = 1%). Truncates in the payer's favor and uses `u128` for the
+/// intermediate multiplication to avoid overflow.
+pub fn calculate_fee(amount: i128, rate: u32) -> Result<i128, Error> {
+    let fee = (amount as u128)
+        .checked_mul(rate as u128)
+        .ok_or(Error::InvalidAmount)?
+        / 10_000;
+    Ok(fee as i128)
 }
 
 #[cfg(test)]

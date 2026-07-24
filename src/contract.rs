@@ -1,12 +1,13 @@
 use crate::error::Error;
 use crate::events::{
     publish_dispute_resolved, publish_escrow_created, publish_escrow_refunded,
-    publish_funds_locked, publish_funds_released,
+    publish_funds_locked, publish_funds_released, publish_protocol_fee_collected,
 };
 use crate::storage::{
-    extend_instance_ttl, extend_persistent_ttl, increment_nonce, write_escrow_state,
-    write_fee_config,
+    extend_instance_ttl, extend_persistent_ttl, increment_nonce, read_fee_rate, read_treasury,
+    write_escrow_state, write_fee_config,
 };
+use crate::token::calculate_fee;
 use crate::types::{DataKey, EscrowId, EscrowState, EscrowStatus};
 use crate::validation::{
     require_admin, require_buyer, require_buyer_auth, require_escrow, require_not_terminal,
@@ -76,7 +77,7 @@ impl PadiPayEscrowContract {
         Ok(())
     }
 
-    /// Releases funds to the seller.
+    /// Releases funds to the seller, skimming the protocol fee (if configured).
     pub fn release_funds(env: Env, escrow_id: EscrowId) -> Result<(), Error> {
         let mut state = require_escrow(&env, escrow_id)?;
 
@@ -85,12 +86,26 @@ impl PadiPayEscrowContract {
 
         let token_client = crate::token::get_token_client(&env, &state.token);
 
-        // Transfer from contract to seller
+        let treasury = read_treasury(&env);
+        let fee = match &treasury {
+            Some(_) => calculate_fee(state.amount, read_fee_rate(&env).unwrap_or(0))?,
+            None => 0,
+        };
+        let seller_amount = state.amount - fee;
+
+        // Transfer from contract to seller, minus the protocol fee (if any)
         token_client.transfer(
             &env.current_contract_address(),
             &state.seller,
-            &state.amount,
+            &seller_amount,
         );
+        if fee > 0 {
+            token_client.transfer(
+                &env.current_contract_address(),
+                treasury.as_ref().unwrap(),
+                &fee,
+            );
+        }
 
         state.status = EscrowStatus::Released;
         write_escrow_state(&env, escrow_id, &state);
@@ -99,6 +114,9 @@ impl PadiPayEscrowContract {
         extend_persistent_ttl(&env, &DataKey::Escrow(escrow_id));
 
         publish_funds_released(&env, escrow_id, &state);
+        if fee > 0 {
+            publish_protocol_fee_collected(&env, escrow_id, treasury.as_ref().unwrap(), fee);
+        }
 
         Ok(())
     }
