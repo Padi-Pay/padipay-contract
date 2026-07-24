@@ -47,6 +47,17 @@ pub fn require_valid_transition(state: &EscrowState, target: &EscrowStatus) -> R
     Ok(())
 }
 
+/// Validates that the escrow has not already reached a terminal state.
+pub fn require_not_terminal(state: &EscrowState) -> Result<(), Error> {
+    if matches!(
+        state.status,
+        EscrowStatus::Released | EscrowStatus::Refunded
+    ) {
+        return Err(Error::InvalidState);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
