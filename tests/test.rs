@@ -255,6 +255,132 @@ fn test_release_funds() {
 }
 
 #[test]
+fn test_release_funds_fee_uninitialized_defaults_to_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+
+    setup.token_client.mint(&setup.buyer, &10000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+
+    env.as_contract(&setup.contract_id, || {
+        assert_eq!(soroban_escrow_contracts::storage::read_fee_rate(&env), None);
+    });
+
+    setup.client.release_funds(&escrow_id);
+
+    let events = env.events().all().filter_by_contract(&setup.contract_id);
+    assert_eq!(events.events().len(), 1);
+
+    // No fee is configured, so the seller receives 100% of the funds.
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 1000);
+}
+
+#[test]
+fn test_release_funds_with_fee_splits_seller_and_treasury() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 10_000;
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    // 100 basis points = 1%
+    setup.client.set_fee_config(&admin, &100, &treasury);
+
+    setup.token_client.mint(&setup.buyer, &100_000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+    setup.client.release_funds(&escrow_id);
+
+    let expected_state = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Released,
+    };
+    let events = env.events().all().filter_by_contract(&setup.contract_id);
+    assert_eq!(
+        events,
+        vec![
+            &env,
+            (
+                setup.contract_id.clone(),
+                (Symbol::new(&env, "FundsReleased"), escrow_id,).into_val(&env),
+                expected_state.into_val(&env)
+            ),
+            (
+                setup.contract_id.clone(),
+                (Symbol::new(&env, "ProtocolFeeCollected"), escrow_id,).into_val(&env),
+                (treasury.clone(), 100i128).into_val(&env)
+            )
+        ]
+    );
+
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 9_900);
+    assert_eq!(setup.token_client_basic.balance(&treasury), 100);
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 0);
+}
+
+#[test]
+fn test_release_funds_fee_rounding_favors_seller() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 999;
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    // 100 basis points = 1%: 999 * 100 / 10_000 = 9.99, truncates to 9.
+    setup.client.set_fee_config(&admin, &100, &treasury);
+
+    setup.token_client.mint(&setup.buyer, &10_000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+    setup.client.release_funds(&escrow_id);
+
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 990);
+    assert_eq!(setup.token_client_basic.balance(&treasury), 9);
+}
+
+#[test]
+fn test_release_funds_tiny_amount_fee_truncates_to_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1;
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+
+    // 100 basis points = 1%: 1 * 100 / 10_000 = 0.01, truncates to 0.
+    setup.client.set_fee_config(&admin, &100, &treasury);
+
+    setup.token_client.mint(&setup.buyer, &10_000);
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+    setup.client.lock_funds(&escrow_id);
+    setup.client.release_funds(&escrow_id);
+
+    // Fee truncates to 0, so no fee event fires.
+    let events = env.events().all().filter_by_contract(&setup.contract_id);
+    assert_eq!(events.events().len(), 1);
+
+    // The seller receives 100% of the funds.
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 1);
+    assert_eq!(setup.token_client_basic.balance(&treasury), 0);
+}
+
+#[test]
 #[should_panic(expected = "HostError: Error(Contract, #2)")]
 fn test_release_funds_already_released() {
     let env = Env::default();

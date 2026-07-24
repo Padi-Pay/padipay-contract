@@ -33,3 +33,13 @@ pub fn publish_dispute_resolved(
     env.events()
         .publish(topics, (state.clone(), mediator.clone(), outcome.clone()));
 }
+
+pub fn publish_protocol_fee_collected(
+    env: &Env,
+    escrow_id: EscrowId,
+    treasury: &Address,
+    fee: i128,
+) {
+    let topics = (Symbol::new(env, "ProtocolFeeCollected"), escrow_id);
+    env.events().publish(topics, (treasury.clone(), fee));
+}
