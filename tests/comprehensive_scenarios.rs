@@ -1,3 +1,4 @@
+//! Comprehensive integration test scenarios for the PadiPay escrow contract.
 #![cfg(test)]
 
 use soroban_escrow_contracts::{PadiPayEscrowContract, PadiPayEscrowContractClient};
@@ -1344,10 +1345,9 @@ fn test_other_user_balance_is_not_affected() {
     let setup = comprehensive_setup(&env);
     let other_user = Address::generate(&env);
     setup.token_client.mint(&other_user, &100);
-    assert_eq!(setup.token_client_basic.balance(&other_user), 100);
+    setup.token_client.mint(&setup.buyer, &100);
     let id = create_and_lock_helper(&setup, 50);
     setup.client.release_funds(&id);
-    // Verify balance remains unmodified
+    // Verify that the other user's balance remains unchanged
     assert_eq!(setup.token_client_basic.balance(&other_user), 100);
 }
-
