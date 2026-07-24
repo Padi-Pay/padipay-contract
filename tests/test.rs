@@ -56,6 +56,13 @@ fn test_create_escrow() {
         .client
         .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
 
+    let expected_state = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Created,
+    };
     let events = env.events().all();
     assert_eq!(
         events,
@@ -63,14 +70,8 @@ fn test_create_escrow() {
             &env,
             (
                 setup.contract_id.clone(),
-                (
-                    Symbol::new(&env, "EscrowCreated"),
-                    escrow_id,
-                    setup.buyer.clone(),
-                    setup.seller.clone()
-                )
-                    .into_val(&env),
-                amount.into_val(&env)
+                (Symbol::new(&env, "EscrowCreated"), escrow_id,).into_val(&env),
+                expected_state.into_val(&env)
             )
         ]
     );
@@ -147,6 +148,13 @@ fn test_lock_funds() {
     // Lock funds
     setup.client.lock_funds(&escrow_id);
 
+    let expected_state = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Locked,
+    };
     let events = env.events().all().filter_by_contract(&setup.contract_id);
     assert_eq!(
         events,
@@ -154,14 +162,8 @@ fn test_lock_funds() {
             &env,
             (
                 setup.contract_id.clone(),
-                (
-                    Symbol::new(&env, "FundsLocked"),
-                    escrow_id,
-                    setup.buyer.clone(),
-                    setup.seller.clone()
-                )
-                    .into_val(&env),
-                amount.into_val(&env)
+                (Symbol::new(&env, "FundsLocked"), escrow_id,).into_val(&env),
+                expected_state.into_val(&env)
             )
         ]
     );
@@ -219,6 +221,13 @@ fn test_release_funds() {
     // Release funds
     setup.client.release_funds(&escrow_id);
 
+    let expected_state = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Released,
+    };
     let events = env.events().all().filter_by_contract(&setup.contract_id);
     assert_eq!(
         events,
@@ -226,14 +235,8 @@ fn test_release_funds() {
             &env,
             (
                 setup.contract_id.clone(),
-                (
-                    Symbol::new(&env, "FundsReleased"),
-                    escrow_id,
-                    setup.buyer.clone(),
-                    setup.seller.clone()
-                )
-                    .into_val(&env),
-                amount.into_val(&env)
+                (Symbol::new(&env, "FundsReleased"), escrow_id,).into_val(&env),
+                expected_state.into_val(&env)
             )
         ]
     );
@@ -293,6 +296,13 @@ fn test_refund() {
     // Refund
     setup.client.refund(&escrow_id);
 
+    let expected_state = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Refunded,
+    };
     let events = env.events().all().filter_by_contract(&setup.contract_id);
     assert_eq!(
         events,
@@ -300,14 +310,8 @@ fn test_refund() {
             &env,
             (
                 setup.contract_id.clone(),
-                (
-                    Symbol::new(&env, "EscrowRefunded"),
-                    escrow_id,
-                    setup.buyer.clone(),
-                    setup.seller.clone()
-                )
-                    .into_val(&env),
-                amount.into_val(&env)
+                (Symbol::new(&env, "EscrowRefunded"), escrow_id,).into_val(&env),
+                expected_state.into_val(&env)
             )
         ]
     );
@@ -461,6 +465,13 @@ fn test_escrow_lifecycle_happy_path_release() {
         .client
         .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
 
+    let expected_state_created = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Created,
+    };
     let events = env.events().all().filter_by_contract(&setup.contract_id);
     assert_eq!(
         events,
@@ -468,14 +479,8 @@ fn test_escrow_lifecycle_happy_path_release() {
             &env,
             (
                 setup.contract_id.clone(),
-                (
-                    Symbol::new(&env, "EscrowCreated"),
-                    escrow_id,
-                    setup.buyer.clone(),
-                    setup.seller.clone()
-                )
-                    .into_val(&env),
-                amount.into_val(&env)
+                (Symbol::new(&env, "EscrowCreated"), escrow_id,).into_val(&env),
+                expected_state_created.into_val(&env)
             )
         ]
     );
@@ -502,14 +507,15 @@ fn test_escrow_lifecycle_happy_path_release() {
             &env,
             (
                 setup.contract_id.clone(),
-                (
-                    Symbol::new(&env, "FundsLocked"),
-                    escrow_id,
-                    setup.buyer.clone(),
-                    setup.seller.clone()
-                )
-                    .into_val(&env),
-                amount.into_val(&env)
+                (Symbol::new(&env, "FundsLocked"), escrow_id,).into_val(&env),
+                soroban_escrow_contracts::types::EscrowState {
+                    buyer: setup.buyer.clone(),
+                    seller: setup.seller.clone(),
+                    token: setup.token.clone(),
+                    amount,
+                    status: soroban_escrow_contracts::types::EscrowStatus::Locked,
+                }
+                .into_val(&env)
             )
         ]
     );
@@ -528,6 +534,13 @@ fn test_escrow_lifecycle_happy_path_release() {
     // 4. Release Funds
     setup.client.release_funds(&escrow_id);
 
+    let expected_state_released = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Released,
+    };
     let events = env.events().all().filter_by_contract(&setup.contract_id);
     assert_eq!(
         events,
@@ -535,14 +548,8 @@ fn test_escrow_lifecycle_happy_path_release() {
             &env,
             (
                 setup.contract_id.clone(),
-                (
-                    Symbol::new(&env, "FundsReleased"),
-                    escrow_id,
-                    setup.buyer.clone(),
-                    setup.seller.clone()
-                )
-                    .into_val(&env),
-                amount.into_val(&env)
+                (Symbol::new(&env, "FundsReleased"), escrow_id,).into_val(&env),
+                expected_state_released.into_val(&env)
             )
         ]
     );
@@ -596,6 +603,13 @@ fn test_escrow_lifecycle_happy_path_refund() {
     // 4. Refund Funds
     setup.client.refund(&escrow_id);
 
+    let expected_state_refunded = soroban_escrow_contracts::types::EscrowState {
+        buyer: setup.buyer.clone(),
+        seller: setup.seller.clone(),
+        token: setup.token.clone(),
+        amount,
+        status: soroban_escrow_contracts::types::EscrowStatus::Refunded,
+    };
     let events = env.events().all().filter_by_contract(&setup.contract_id);
     assert_eq!(
         events,
@@ -603,14 +617,8 @@ fn test_escrow_lifecycle_happy_path_refund() {
             &env,
             (
                 setup.contract_id.clone(),
-                (
-                    Symbol::new(&env, "EscrowRefunded"),
-                    escrow_id,
-                    setup.buyer.clone(),
-                    setup.seller.clone()
-                )
-                    .into_val(&env),
-                amount.into_val(&env)
+                (Symbol::new(&env, "EscrowRefunded"), escrow_id,).into_val(&env),
+                expected_state_refunded.into_val(&env)
             )
         ]
     );
