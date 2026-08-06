@@ -26,21 +26,24 @@ This repository contains the core Soroban smart contracts that power the PadiPay
 
 The contract implements an **Escrow Manager** architecture, meaning a single deployed contract is capable of managing many independent escrow agreements concurrently.
 
-## Completed MVP Scope (v0.1.0)
+## Current Scope
 
-The v0.1.0 milestone delivered a deployable **Happy Path MVP** on the Stellar Testnet. For full release details, see the [Changelog](CHANGELOG.md).
+The repository currently supports the **v0.2.0 Contract Hardening** milestone on the Stellar Testnet. For full release details, see the [Changelog](CHANGELOG.md).
 
 It supports:
 - Basic escrow creation
 - Locking funds
+- Time-locks / Expirations (`execute_timeout`)
 - Releasing funds to the seller
 - Refunding the buyer
+- Dispute resolution with an authenticated mediator
+- Emergency circuit breakers (pause/unpause)
 
-*Note: Complex workflows like human-in-the-loop dispute resolution and milestone payments are deferred to future milestones.*
+*Note: Future milestone workflows like multi-mediator consensus and milestone payments are deferred to Phase C.*
 
 ## Escrow Lifecycle
 
-Below is the current lifecycle of an escrow in the MVP. Note that the contract manages many escrows simultaneously, and this lifecycle applies independently to each unique escrow agreement:
+Below is the current lifecycle of an escrow. Note that the contract manages many escrows simultaneously, and this lifecycle applies independently to each unique escrow agreement:
 
 ```mermaid
 stateDiagram-v2
@@ -48,6 +51,9 @@ stateDiagram-v2
     Created --> Locked : Buyer Locks Funds
     Locked --> Released : Released to Seller
     Locked --> Refunded : Refunded to Buyer
+    Locked --> Refunded : execute_timeout()
+    Locked --> Released : resolve_dispute("pay_seller")
+    Locked --> Refunded : resolve_dispute("refund_buyer")
     Released --> [*]
     Refunded --> [*]
 ```
@@ -57,9 +63,10 @@ stateDiagram-v2
 The contract follows a modular architecture organized into several logical layers:
 - **Escrow Manager & State:** A single deployed contract manages multiple concurrent escrow agreements. Each agreement is tracked independently via a unique `EscrowId`.
 - **Storage Layer:** Manages persistent contract state per escrow using the Soroban SDK.
-- **Authentication Layer:** Ensures only authorized roles (Buyer, Seller) can perform sensitive actions.
+- **Authentication Layer:** Ensures only authorized roles (Buyer, Seller, Mediator) can perform sensitive actions.
 - **Token Layer:** Safely manages locking, releasing, and refunding Stellar assets.
 - **Event Layer:** Publishes key lifecycle events (e.g., `EscrowCreated`, `FundsLocked`) for off-chain applications.
+- **Admin Layer:** Provides emergency controls (`pause`, `unpause`) to mitigate zero-day risks.
 
 For an in-depth look at the architecture, please see the [Architecture Document](docs/architecture.md).
 
@@ -113,9 +120,8 @@ To deploy the contract to the Stellar Testnet, please see the [Deployment Guide]
 
 PadiPay evolves incrementally. Here is a high-level view of our milestones:
 - **v0.1.0 — Happy Path MVP:** Core escrow flow, tests, and basic CI *[Completed]*
-- **v0.2.0 — Contract Hardening:** Security, expirations, storage optimizations *[Current]*
-- **v0.3.0 — Human Oracle:** Dispute resolution, mediators, oracle registry
-- **v0.4.0 — Production Readiness:** Milestone payments, partial releases, protocol fees
+- **v0.2.0 — Contract Hardening:** Security, expirations, dispute resolution, circuit breaker *[Completed]*
+- **v0.3.0 — Production Readiness (Phase C):** Milestone payments, partial releases, protocol fees, decentralized mediator registry *[Current]*
 
 Read the full plan in our [Roadmap](docs/roadmap.md).
 
