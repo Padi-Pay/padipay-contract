@@ -81,4 +81,6 @@ pub struct EscrowState {
     pub token: Address,
     pub amount: i128,
     pub status: EscrowStatus,
+    pub deadline: u64,
+    pub mediator: Address,
 }

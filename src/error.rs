@@ -10,4 +10,5 @@ pub enum Error {
     InvalidAmount = 4,
     EscrowAlreadyFunded = 5,
     InvalidAddresses = 6,
+    DeadlineNotReached = 7,
 }

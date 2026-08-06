@@ -2,7 +2,7 @@
 
 use soroban_escrow_contracts::{PadiPayEscrowContract, PadiPayEscrowContractClient};
 use soroban_sdk::{
-    testutils::{Address as _, Events},
+    testutils::{Address as _, Events, Ledger},
     vec, Address, Env, IntoVal, Symbol,
 };
 
@@ -51,7 +51,7 @@ fn test_create_escrow() {
 
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 
     let events = env.events().all();
     assert_eq!(
@@ -95,7 +95,7 @@ fn test_create_escrow_unauthorized() {
     // This should panic because buyer didn't authorize
     let _escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn test_create_escrow_invalid_amount() {
 
     let _escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn test_create_escrow_invalid_addresses() {
     // Buyer == seller
     let _escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.buyer, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.buyer, &setup.token, &amount, &0, &setup.token_admin);
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn test_lock_funds() {
     // Create escrow
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 
     // Lock funds
     setup.client.lock_funds(&escrow_id);
@@ -188,7 +188,7 @@ fn test_lock_funds_already_funded() {
 
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
     setup.client.lock_funds(&escrow_id);
 
     // This should panic with AlreadyFunded
@@ -208,7 +208,7 @@ fn test_release_funds() {
     // Create escrow
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 
     // Lock funds
     setup.client.lock_funds(&escrow_id);
@@ -260,7 +260,7 @@ fn test_release_funds_already_released() {
 
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
     setup.client.lock_funds(&escrow_id);
     setup.client.release_funds(&escrow_id);
 
@@ -281,7 +281,7 @@ fn test_refund() {
     // Create and lock
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
     setup.client.lock_funds(&escrow_id);
 
     // Check balance before refund
@@ -334,7 +334,7 @@ fn test_refund_already_released() {
 
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
     setup.client.lock_funds(&escrow_id);
     setup.client.release_funds(&escrow_id);
 
@@ -344,11 +344,65 @@ fn test_refund_already_released() {
 
 #[test]
 fn test_resolve_dispute() {
-    let _env = Env::default();
-    // TODO: Set up environment, register contract, and mock tokens.
-    // TODO: Lock funds first.
-    // TODO: Call client.resolve_dispute(&mediator, &Symbol::new(&env, "refund_buyer")).
-    // TODO: Assert that the funds were routed correctly based on the outcome.
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+
+    // Mint tokens to buyer
+    setup.token_client.mint(&setup.buyer, &10000);
+
+    // Create and lock
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
+    
+    setup.client.lock_funds(&escrow_id);
+
+    // Initial balances after lock
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 1000);
+    assert_eq!(setup.token_client_basic.balance(&setup.buyer), 9000);
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 0);
+
+    // Resolve dispute in favor of seller
+    setup.client.resolve_dispute(&escrow_id, &Symbol::new(&env, "pay_seller"));
+
+    // Verify seller received funds
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 0);
+    assert_eq!(setup.token_client_basic.balance(&setup.seller), 1000);
+
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::storage::read_escrow_state(&env, escrow_id).unwrap();
+        assert_eq!(
+            state.status,
+            soroban_escrow_contracts::types::EscrowStatus::Released
+        );
+    });
+
+    // Test dispute in favor of buyer
+    let amount2 = 2000;
+    let escrow_id_2 = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount2, &0, &setup.token_admin);
+    
+    setup.client.lock_funds(&escrow_id_2);
+
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 2000);
+
+    // Resolve dispute in favor of buyer
+    setup.client.resolve_dispute(&escrow_id_2, &Symbol::new(&env, "refund_buyer"));
+
+    // Verify buyer received funds
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 0);
+    assert_eq!(setup.token_client_basic.balance(&setup.buyer), 9000); // Because they started with 10k, spent 1k on first escrow (released to seller), and second escrow was 2k but refunded. So 10k - 1k = 9k.
+
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::storage::read_escrow_state(&env, escrow_id_2).unwrap();
+        assert_eq!(
+            state.status,
+            soroban_escrow_contracts::types::EscrowStatus::Refunded
+        );
+    });
 }
 
 #[test]
@@ -365,7 +419,7 @@ fn test_escrow_lifecycle_happy_path_release() {
     // 2. Create Escrow
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 
     let events = env.events().all().filter_by_contract(&setup.contract_id);
     assert_eq!(
@@ -478,7 +532,7 @@ fn test_escrow_lifecycle_happy_path_refund() {
     // 2. Create Escrow
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 
     env.as_contract(&setup.contract_id, || {
         let state = soroban_escrow_contracts::storage::read_escrow_state(&env, escrow_id).unwrap();
@@ -547,6 +601,8 @@ fn test_lock_funds_unauthorized() {
             token: setup.token.clone(),
             amount: 1000,
             status: soroban_escrow_contracts::types::EscrowStatus::Created,
+            deadline: 0,
+            mediator: setup.token_admin.clone(),
         };
         soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
     });
@@ -567,7 +623,8 @@ fn test_release_funds_unauthorized() {
             seller: setup.seller.clone(),
             token: setup.token.clone(),
             amount: 1000,
-            status: soroban_escrow_contracts::types::EscrowStatus::Locked,
+            status: soroban_escrow_contracts::types::EscrowStatus::Locked, deadline: 0,
+            mediator: setup.token_admin.clone(),
         };
         soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
     });
@@ -588,7 +645,8 @@ fn test_refund_unauthorized() {
             seller: setup.seller.clone(),
             token: setup.token.clone(),
             amount: 1000,
-            status: soroban_escrow_contracts::types::EscrowStatus::Locked,
+            status: soroban_escrow_contracts::types::EscrowStatus::Locked, deadline: 0,
+            mediator: setup.token_admin.clone(),
         };
         soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
     });
@@ -606,7 +664,7 @@ fn test_release_funds_invalid_state() {
 
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 
     // Try to release while still 'Created' (invalid state)
     setup.client.release_funds(&escrow_id);
@@ -622,7 +680,7 @@ fn test_refund_invalid_state() {
 
     let escrow_id = setup
         .client
-        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount);
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
 
     // Try to refund while still 'Created' (invalid state)
     setup.client.refund(&escrow_id);
@@ -642,14 +700,14 @@ fn test_multiple_concurrent_escrows() {
     let escrow_id_1 =
         setup
             .client
-            .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount1);
+            .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount1, &0, &setup.token_admin);
 
     // Create Escrow 2
     let amount2 = 5000;
     let escrow_id_2 =
         setup
             .client
-            .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount2);
+            .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount2, &0, &setup.token_admin);
 
     // Validate unique IDs
     assert_eq!(escrow_id_1, 1);
@@ -681,4 +739,58 @@ fn test_multiple_concurrent_escrows() {
     // Verify balances
     assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 1000);
     assert_eq!(setup.token_client_basic.balance(&setup.buyer), 19000); // 20000 - 1000 (locked) - 5000 (not locked yet, wait, create_escrow doesn't transfer funds). Wait, create_escrow DOES NOT transfer. Lock does. So balance is 20000 - 1000 = 19000.
+}
+
+#[test]
+fn test_execute_timeout_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+
+    setup.token_client.mint(&setup.buyer, &10000);
+
+    // Set deadline to 100 seconds from now
+    let current_time = env.ledger().timestamp();
+    let deadline = current_time + 100;
+
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &deadline, &setup.token_admin);
+    
+    setup.client.lock_funds(&escrow_id);
+    
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 1000);
+
+    // Advance ledger time past deadline
+    env.ledger().set_timestamp(deadline + 1);
+
+    setup.client.execute_timeout(&escrow_id);
+
+    // Verify refund
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 0);
+    assert_eq!(setup.token_client_basic.balance(&setup.buyer), 10000);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #7)")]
+fn test_execute_timeout_before_deadline() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+
+    setup.token_client.mint(&setup.buyer, &10000);
+
+    let current_time = env.ledger().timestamp();
+    let deadline = current_time + 100;
+
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &deadline, &setup.token_admin);
+    
+    setup.client.lock_funds(&escrow_id);
+
+    // Try to timeout before deadline
+    setup.client.execute_timeout(&escrow_id);
 }

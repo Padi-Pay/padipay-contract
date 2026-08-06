@@ -61,6 +61,8 @@ mod test {
                 token,
                 amount: 100,
                 status: EscrowStatus::Created,
+            deadline: 0,
+            mediator: soroban_sdk::Address::generate(&env),
             };
 
             let id: EscrowId = 1;

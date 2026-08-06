@@ -1,337 +1,129 @@
-# Smart Contract Architecture
+# PadiPay Smart Contract Architecture
 
-This document describes the architecture of the **PadiPay Soroban Escrow Contracts**, including the contract components, escrow lifecycle, storage model, authentication model, and planned evolution of the protocol.
-
-> **Note**
->
-> This document reflects the current **v0.1.0 MVP** implementation. Features planned for future milestones are documented separately to distinguish implemented functionality from the long-term vision.
+This document describes the comprehensive architecture of the **PadiPay Soroban Escrow Contracts**. It covers the state machine, transaction authorization, timeout logic, dispute resolution, and lifecycle invariants.
 
 ---
 
-# Overview
+## 1. Overview
 
-The PadiPay escrow contract acts as an **Escrow Manager** that enables multiple buyers and sellers to securely exchange digital assets concurrently using a trust-minimized escrow model on the Stellar network.
+The PadiPay contract acts as a trust-minimized **Escrow Manager**. It allows multiple buyers and sellers to safely exchange digital assets. The contract is designed around a strict state machine that guarantees deterministic outcomes for all parties, regardless of whether a transaction succeeds smoothly, times out, or enters a dispute.
 
-The contract is intentionally designed to be:
-
-* Modular
-* Extensible
-* Testable
-* Contributor-friendly
-
-Rather than implementing every feature at once, the protocol evolves incrementally through milestone-based development.
+### Why this architecture?
+We chose a single multi-escrow contract rather than deploying a new contract instance per escrow. This optimizes deployment costs, simplifies the relayer API, and allows all escrows to share a single nonce-based storage layout. 
 
 ---
 
-# Design Principles
+## 2. Escrow Lifecycle & State Machine
 
-The contract follows several guiding principles:
+Every escrow created on the PadiPay contract must strictly adhere to the defined lifecycle. Escrow states are mutated based on user actions and ledger time. 
 
-* Keep the MVP intentionally small.
-* Build reusable components.
-* Prefer explicit state transitions.
-* Never mutate escrow state without validation.
-* Require authorization before performing sensitive operations.
-* Emit events for important lifecycle actions.
-* Keep business logic separated from storage helpers.
-* Maintain comprehensive unit test coverage.
-
----
-
-# Contract Components
-
-The contract is organized into several logical responsibilities.
-
-## Escrow State
-
-Responsible for representing an escrow agreement and its identifier.
-
-Examples include:
-
-* EscrowId
-* EscrowState
-* EscrowStatus
-* DataKey
-
----
-
-## Storage Layer
-
-Responsible for reading and writing escrow data.
-
-Responsibilities include:
-
-* Generating unique identifiers (nonces) for new escrows
-* Persisting escrow records independently
-* Updating specific escrow states using their EscrowId
-* Retrieving existing escrows
-
----
-
-## Authentication Layer
-
-Responsible for validating transaction authorization.
-
-Current roles:
-
-* Buyer
-* Seller
-
-Future roles:
-
-* Mediator
-* Oracle
-
----
-
-## Token Layer
-
-Responsible for interacting with Soroban token contracts.
-
-Responsibilities include:
-
-* Locking funds
-* Releasing funds
-* Refunding buyers
-
----
-
-## Event Layer
-
-Responsible for publishing contract events for off-chain consumers.
-
----
-
-# Escrow Lifecycle (v0.1.0)
-
-The MVP supports a simple escrow lifecycle. Note that a single deployed contract manages multiple escrows simultaneously, and this lifecycle applies independently to each escrow record (identified by an `EscrowId`).
+### 2.1 The Complete State Flow
 
 ```text
-Buyer
-
-↓
-
-Create Escrow
-
-↓
-
-Lock Funds
-
-↓
-
-Release Funds
-
-OR
-
-Refund Buyer
+       ┌───────────────┐
+       │               │
+       ▼               │
+   [Created]           │
+       │               │ (execute_timeout)
+   (lock_funds)        │
+       │               │
+       ▼               │
+   [Locked] ───────────┘
+       │
+       ├───────────────────┐
+       │                   │
+  (release_funds)      (refund) / (resolve_dispute)
+       │                   │
+       ▼                   ▼
+  [Released]           [Refunded]
+ (Terminal)            (Terminal)
 ```
 
----
+### 2.2 Valid Transitions
 
-# State Machine
+- **`Created` → `Locked`**
+  - **Authorized by:** Buyer
+  - **Why:** The buyer locks funds to indicate they are ready to proceed with the transaction.
+- **`Locked` → `Released`**
+  - **Authorized by:** Buyer (happy path) or Mediator (dispute path)
+  - **Why:** To finalize the transaction and pay the seller. The buyer does this when satisfied; the mediator does this if ruling in favor of the seller.
+- **`Locked` → `Refunded`**
+  - **Authorized by:** Seller (happy path refund), Buyer (via timeout), or Mediator (dispute path)
+  - **Why:** To return funds to the buyer. The seller does this if they cannot fulfill the order. The buyer does this if the deadline passes and the seller has not delivered. The mediator does this if ruling in favor of the buyer.
 
-## Current (v0.1.0)
+### 2.3 Invalid Transitions
 
-```text
-Created
-    │
-    ▼
-Locked
- ┌──┴─────┐
- ▼        ▼
-Released Refunded
-```
-
-State transitions are strictly validated.
-
-Allowed transitions:
-
-* Created → Locked
-* Locked → Released
-* Locked → Refunded
-
-All other transitions should be rejected.
+- **`Created` → `Released` / `Refunded`**
+  - **Why:** Funds cannot be distributed before they are actually locked in the contract.
+- **`Locked` → `Created`**
+  - **Why:** Once funds are committed, the contract cannot pretend the escrow was just created; it must either proceed to release or refund.
+- **Any State → Same State**
+  - **Why:** Prevents redundant processing and potential double-spend logic.
+- **`Released` / `Refunded` → Any State**
+  - **Why:** These are **terminal states**. Once funds are disbursed, the escrow lifecycle is irrevocably finished.
 
 ---
 
-## Future Extension (v0.3.0)
+## 3. Advanced Flows
 
-The Human-in-the-Loop Oracle introduces dispute resolution.
+### 3.1 Timeout Flow (`execute_timeout`)
+- **Condition:** Escrow is `Locked` AND `env.ledger().timestamp() > deadline`.
+- **Authorized by:** Buyer (or theoretically anyone, since it's deterministic based on time).
+- **Why it exists:** Without expirations, an unresponsive seller could trap the buyer's funds in the contract indefinitely. The deadline enforces a strict timeline for delivery.
 
-```text
-Created
-    │
-    ▼
-Locked
-   │
-   ▼
-Disputed
- ┌──┴─────┐
- ▼        ▼
-Released Refunded
-```
-
-This functionality is intentionally outside the scope of the MVP.
+### 3.2 Dispute Flow (`resolve_dispute`)
+- **Condition:** Escrow is `Locked`.
+- **Authorized by:** The specific `mediator` address assigned at creation.
+- **Why it exists:** If the buyer and seller cannot agree on a release or refund, the designated mediator has the ultimate authority to parse the dispute outcome and route funds to either the buyer (`Refunded`) or the seller (`Released`).
 
 ---
 
-# Storage Layout
+## 4. Authorization & Access Control
 
-Escrow data is stored using Soroban contract storage. The architecture utilizes a multi-escrow storage model.
+The contract validates authorization via Soroban's native `require_auth()` and strict role checks against the `EscrowState`.
 
-Core data structures include:
-
-* DataKey
-* EscrowId (A unique `u64` identifier)
-* EscrowState
-* EscrowStatus
-
-The contract tracks an `EscrowNonce` in instance storage to generate unique IDs.
-
-Each individual escrow record is stored in persistent storage using `DataKey::Escrow(EscrowId)` and contains:
-
-* Buyer address
-* Seller address
-* Token contract address
-* Escrow amount
-* Current status
-
-Future versions may introduce:
-
-* Escrow expiration
-* Metadata
-* Oracle assignments
-* Evidence references
+| Action | Required Authorization | Justification |
+| :--- | :--- | :--- |
+| `create_escrow` | Buyer | Only the buyer can initiate the intent to lock their own funds. |
+| `lock_funds` | Buyer | The buyer must cryptographically sign the actual token transfer to the contract. |
+| `release_funds` | Buyer | Only the buyer can unilaterally decide they are satisfied and pay the seller. |
+| `refund` | Seller | The seller can unilaterally decide to refund the buyer if they cannot fulfill the order. |
+| `execute_timeout`| Buyer | Once the deadline passes, the buyer is entitled to recover their funds. |
+| `resolve_dispute`| Mediator | Only the trusted third-party can force a resolution during a conflict. |
 
 ---
 
-# Authentication Model
+## 5. Storage Model
 
-The contract currently supports two participant roles.
+Escrow data is stored using Soroban's persistent contract storage. 
 
-## Buyer
+- **EscrowId (`u64`)**: Derived from a globally incrementing nonce (`DataKey::EscrowNonce`). Guarantees unique IDs across the contract instance.
+- **EscrowState**: Stored at `DataKey::Escrow(EscrowId)`. It contains the immutable parameters (`buyer`, `seller`, `token`, `amount`, `deadline`, `mediator`) and the mutable `status`.
 
-Responsible for:
-
-* Creating escrows
-* Locking funds
-
-## Seller
-
-Responsible for:
-
-* Receiving released funds
-
-Future versions will introduce additional roles.
-
-### Mediator
-
-Responsible for:
-
-* Resolving disputes
-* Approving refunds after disputes
-
-### Oracle
-
-Responsible for:
-
-* Providing trusted dispute outcomes
+**Storage Invariants:**
+1. Once an `EscrowState` is created, its immutable parameters (buyer, seller, token, amount, deadline, mediator) must *never* be altered. Only the `status` may change.
+2. The `EscrowNonce` strictly increments and never rolls back, preventing ID collisions.
 
 ---
 
-# Token Flow
+## 6. Token Flow
 
-Funds are managed through the Soroban Token Interface.
+Funds are managed via the Soroban Token Interface (`token::Client`). 
 
-Current flow:
-
-```text
-Buyer Wallet
-      │
-      ▼
-Escrow Contract
-      │
- ┌────┴─────┐
- ▼          ▼
-Seller    Buyer
-Release   Refund
-```
-
-The contract never mints assets.
-
-It only transfers existing tokens between participants.
+- The contract **never mints** assets.
+- During `lock_funds`, the exact `amount` is transferred from the Buyer to the Contract Address.
+- During `release_funds` or `refund`, the exact `amount` is transferred from the Contract Address to the Seller or Buyer, respectively.
+- **Invariant:** The contract's internal balance must always exactly equal the sum of all `Locked` escrows' amounts.
 
 ---
 
-# Event Model
+## 7. Event Model
 
-The contract emits events to allow off-chain applications to observe escrow activity. All lifecycle events emit their associated `EscrowId` to ensure off-chain consumers can route events to the correct agreement.
+The contract emits structured events to allow off-chain applications (e.g., the PadiPay Relayer API) to observe escrow activity.
 
-Planned MVP events:
+- `EscrowCreated`: Emitted on creation.
+- `FundsLocked`: Emitted when the buyer transfers funds.
+- `FundsReleased`: Emitted on a successful payout to the seller.
+- `EscrowRefunded`: Emitted on a successful refund to the buyer (via happy path, timeout, or dispute).
 
-* EscrowCreated
-* FundsLocked
-* FundsReleased
-* EscrowRefunded
-
-Future releases may introduce:
-
-* DisputeCreated
-* MediatorAssigned
-* DisputeResolved
-
----
-
-# Error Model
-
-The contract returns explicit errors instead of panicking.
-
-Examples include:
-
-* Unauthorized
-* EscrowNotFound
-* InvalidState
-* InvalidAmount
-* EscrowAlreadyFunded
-
-Future releases may expand this list as new features are introduced.
-
----
-
-# Future Architecture
-
-## v0.2.0 — Contract Hardening
-
-Planned improvements:
-
-* Escrow expiration
-* Additional validation
-* Better error handling
-* Storage optimization
-* Security improvements
-
----
-
-## v0.3.0 — Human Oracle
-
-Planned additions:
-
-* Oracle registry
-* Mediator permissions
-* Dispute workflow
-* Evidence handling
-* Dispute events
-
----
-
-## v0.4.0 — Production Readiness
-
-Planned additions:
-
-* Milestone payments
-* Partial releases
-* Protocol fees
-* Multi-party escrow
-* Performance optimization
-* Fuzz testing
-* Security audit
+All events include the `EscrowId`, `buyer`, and `seller` to facilitate efficient off-chain indexing and notification routing.
