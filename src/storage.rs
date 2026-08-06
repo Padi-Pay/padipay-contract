@@ -39,6 +39,32 @@ pub fn increment_nonce(env: &Env) -> EscrowId {
     nonce
 }
 
+/// Reads the admin address.
+pub fn read_admin(env: &Env) -> Result<soroban_sdk::Address, Error> {
+    env.storage()
+        .instance()
+        .get(&DataKey::Admin)
+        .ok_or(Error::NotInitialized)
+}
+
+/// Writes the admin address.
+pub fn write_admin(env: &Env, admin: &soroban_sdk::Address) {
+    env.storage().instance().set(&DataKey::Admin, admin);
+}
+
+/// Checks if the contract is paused.
+pub fn is_paused(env: &Env) -> bool {
+    env.storage()
+        .instance()
+        .get(&DataKey::IsPaused)
+        .unwrap_or(false)
+}
+
+/// Sets the paused state of the contract.
+pub fn set_paused(env: &Env, paused: bool) {
+    env.storage().instance().set(&DataKey::IsPaused, &paused);
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

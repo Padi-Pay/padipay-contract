@@ -2,7 +2,9 @@ use crate::error::Error;
 use crate::events::{
     publish_escrow_created, publish_escrow_refunded, publish_funds_locked, publish_funds_released,
 };
-use crate::storage::{increment_nonce, write_escrow_state};
+use crate::storage::{
+    increment_nonce, is_paused, read_admin, set_paused, write_admin, write_escrow_state,
+};
 use crate::types::{EscrowId, EscrowState, EscrowStatus};
 use crate::validation::{
     require_buyer, require_escrow, require_seller, require_status, require_valid_transition,
@@ -14,6 +16,30 @@ pub struct PadiPayEscrowContract;
 
 #[contractimpl]
 impl PadiPayEscrowContract {
+    /// Initializes the contract with an admin.
+    pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
+        if read_admin(&env).is_ok() {
+            return Err(Error::AlreadyInitialized);
+        }
+        write_admin(&env, &admin);
+        Ok(())
+    }
+
+    /// Pauses the contract, preventing new escrows from being created.
+    pub fn pause(env: Env) -> Result<(), Error> {
+        let admin = read_admin(&env)?;
+        admin.require_auth();
+        set_paused(&env, true);
+        Ok(())
+    }
+
+    /// Unpauses the contract.
+    pub fn unpause(env: Env) -> Result<(), Error> {
+        let admin = read_admin(&env)?;
+        admin.require_auth();
+        set_paused(&env, false);
+        Ok(())
+    }
     pub fn create_escrow(
         env: Env,
         buyer: Address,
@@ -23,6 +49,10 @@ impl PadiPayEscrowContract {
         deadline: u64,
         mediator: Address,
     ) -> Result<EscrowId, Error> {
+        if is_paused(&env) {
+            return Err(Error::ContractPaused);
+        }
+
         buyer.require_auth();
 
         if amount <= 0 {

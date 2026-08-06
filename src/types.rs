@@ -38,6 +38,8 @@ pub enum DataKey {
     Escrow(EscrowId),
     /// The nonce used to generate unique escrow IDs.
     EscrowNonce,
+    /// Boolean flag indicating if the contract is paused.
+    IsPaused,
 }
 
 #[cfg(test)]

@@ -794,3 +794,132 @@ fn test_execute_timeout_before_deadline() {
     // Try to timeout before deadline
     setup.client.execute_timeout(&escrow_id);
 }
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #2)")]
+fn test_execute_timeout_after_release() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+
+    setup.token_client.mint(&setup.buyer, &10000);
+    let current_time = env.ledger().timestamp();
+    let deadline = current_time + 100;
+
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &deadline, &setup.token_admin);
+
+    setup.client.lock_funds(&escrow_id);
+    setup.client.release_funds(&escrow_id);
+
+    // Advance ledger time past deadline
+    env.ledger().set_timestamp(deadline + 1);
+
+    // Should fail with InvalidState because it's already Released
+    setup.client.execute_timeout(&escrow_id);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Auth, InvalidAction)")]
+fn test_resolve_dispute_unauthorized() {
+    let env = Env::default();
+    let setup = setup_test(&env);
+    let amount = 1000;
+
+    // Use a contract wrapper to bypass standard auth mocking so it actually fails
+    let escrow_id = 0; // We mock state instead of calling create_escrow which requires auth
+
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::types::EscrowState {
+            buyer: setup.buyer.clone(),
+            seller: setup.seller.clone(),
+            token: setup.token.clone(),
+            amount: 1000,
+            status: soroban_escrow_contracts::types::EscrowStatus::Locked,
+            deadline: 0,
+            mediator: setup.token_admin.clone(),
+        };
+        soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
+    });
+
+    // Try to resolve dispute without mediator auth
+    setup.client.resolve_dispute(&escrow_id, &Symbol::new(&env, "refund_buyer"));
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #2)")]
+fn test_resolve_dispute_invalid_outcome() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+
+    setup.token_client.mint(&setup.buyer, &10000);
+
+    let escrow_id = setup
+        .client
+        .create_escrow(&setup.buyer, &setup.seller, &setup.token, &amount, &0, &setup.token_admin);
+
+    setup.client.lock_funds(&escrow_id);
+
+    // Invalid outcome
+    setup.client.resolve_dispute(&escrow_id, &Symbol::new(&env, "invalid_outcome"));
+}
+
+#[test]
+fn test_circuit_breaker() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+    setup.token_client.mint(&setup.buyer, &10000);
+
+    let admin = Address::generate(&env);
+
+    // Initialize
+    setup.client.initialize(&admin);
+
+    // Initialize again should panic
+    // Wait, testing panic is easier in a separate test.
+
+    // Pause contract
+    setup.client.pause();
+
+    // Try to create escrow - should fail
+    // We can't catch the panic here easily in the same test if we want to continue, so we will just test it separately.
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #8)")]
+fn test_create_escrow_when_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+
+    setup.client.initialize(&admin);
+    setup.client.pause();
+
+    setup.client.create_escrow(
+        &setup.buyer,
+        &setup.seller,
+        &setup.token,
+        &1000,
+        &0,
+        &setup.token_admin,
+    );
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Auth, InvalidAction)")]
+fn test_pause_unauthorized() {
+    let env = Env::default();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+
+    // We can't initialize using client without mock_all_auths if it requires auth? No, initialize doesn't require auth!
+    setup.client.initialize(&admin);
+    setup.client.pause();
+}

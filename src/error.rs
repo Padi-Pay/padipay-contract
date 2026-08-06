@@ -11,4 +11,7 @@ pub enum Error {
     EscrowAlreadyFunded = 5,
     InvalidAddresses = 6,
     DeadlineNotReached = 7,
+    ContractPaused = 8,
+    AlreadyInitialized = 9,
+    NotInitialized = 10,
 }
