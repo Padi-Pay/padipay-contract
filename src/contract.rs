@@ -180,7 +180,11 @@ impl PadiPayEscrowContract {
             publish_escrow_refunded(&env, escrow_id, &state);
         } else if outcome == Symbol::new(&env, "pay_seller") {
             require_valid_transition(&state, &EscrowStatus::Released)?;
-            token_client.transfer(&env.current_contract_address(), &state.seller, &state.amount);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &state.seller,
+                &state.amount,
+            );
             state.status = EscrowStatus::Released;
             publish_funds_released(&env, escrow_id, &state);
         } else {
