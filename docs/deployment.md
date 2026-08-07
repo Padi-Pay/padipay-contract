@@ -65,10 +65,10 @@ This section records the details of the actual deployment of the PadiPay MVP con
 ### Deployment Details
 
 - **Network:** Stellar Testnet
-- **Deployment Date:** 2026-07-11
+- **Deployment Date:** 2026-08-07
 - **Deployer Identity:** `padipay-deployer`
 - **Contract ID:** 
-[CBREAC6HOK5EUD43NXBTMPEEYOBWMNLPPQYBBI4LJAPCOIWO4MUBI6UF](https://lab.stellar.org/smart-contracts/contract-explorer?$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org&passphrase=Test%20SDF%20Network%20/;%20September%202015;&smartContracts$explorer$contractId=CBREAC6HOK5EUD43NXBTMPEEYOBWMNLPPQYBBI4LJAPCOIWO4MUBI6UF;;)
+[CCFMUFNSMI5HMRPBPF2R7TP5GX3BC6PBSC4JP72YLTJQTGTXO2I3R74K](https://lab.stellar.org/smart-contracts/contract-explorer?$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org&passphrase=Test%20SDF%20Network%20/;%20September%202015;&smartContracts$explorer$contractId=CCFMUFNSMI5HMRPBPF2R7TP5GX3BC6PBSC4JP72YLTJQTGTXO2I3R74K;;)
 
 ### Verification
 
@@ -76,7 +76,7 @@ To verify the contract is live, you can query the contract's interface or invoke
 
 ```bash
 stellar contract invoke \
-    --id CBREAC6HOK5EUD43NXBTMPEEYOBWMNLPPQYBBI4LJAPCOIWO4MUBI6UF \
+    --id CCFMUFNSMI5HMRPBPF2R7TP5GX3BC6PBSC4JP72YLTJQTGTXO2I3R74K \
     --source padipay-deployer \
     --network testnet \
     -- \
