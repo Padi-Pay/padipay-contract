@@ -154,6 +154,12 @@
                   },
                   {
                     "key": {
+                      "symbol": "timeout_ledger"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
                       "symbol": "token"
                     },
                     "val": {

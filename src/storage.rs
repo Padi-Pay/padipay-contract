@@ -89,6 +89,7 @@ mod test {
                 status: EscrowStatus::Created,
                 deadline: 0,
                 mediator: soroban_sdk::Address::generate(&env),
+                timeout_ledger: None,
             };
 
             let id: EscrowId = 1;

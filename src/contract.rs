@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use crate::error::Error;
 use crate::events::{
     publish_escrow_created, publish_escrow_refunded, publish_funds_locked, publish_funds_released,
@@ -56,9 +57,16 @@ impl PadiPayEscrowContract {
         amount: i128,
         deadline: u64,
         mediator: Address,
+        timeout_ledger: Option<u32>,
     ) -> Result<EscrowId, Error> {
         if is_paused(&env) {
             return Err(Error::ContractPaused);
+        }
+
+        if let Some(ledger) = timeout_ledger {
+            if ledger <= env.ledger().sequence() {
+                return Err(Error::InvalidTimeout);
+            }
         }
 
         buyer.require_auth();
@@ -78,6 +86,7 @@ impl PadiPayEscrowContract {
             status: EscrowStatus::Created,
             deadline,
             mediator,
+            timeout_ledger,
         };
         let id = increment_nonce(&env);
         write_escrow_state(&env, id, &state);

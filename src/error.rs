@@ -14,4 +14,5 @@ pub enum Error {
     ContractPaused = 8,
     AlreadyInitialized = 9,
     NotInitialized = 10,
+    InvalidTimeout = 11,
 }

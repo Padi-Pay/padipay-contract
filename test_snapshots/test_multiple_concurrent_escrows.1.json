@@ -74,7 +74,8 @@
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                }
+                },
+                "void"
               ]
             }
           },
@@ -108,7 +109,8 @@
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                }
+                },
+                "void"
               ]
             }
           },
@@ -286,6 +288,12 @@
                   },
                   {
                     "key": {
+                      "symbol": "timeout_ledger"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
                       "symbol": "token"
                     },
                     "val": {
@@ -371,6 +379,12 @@
                         }
                       ]
                     }
+                  },
+                  {
+                    "key": {
+                      "symbol": "timeout_ledger"
+                    },
+                    "val": "void"
                   },
                   {
                     "key": {

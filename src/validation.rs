@@ -61,6 +61,7 @@ mod test {
                 status: EscrowStatus::Created,
                 deadline: 0,
                 mediator: soroban_sdk::Address::generate(&env),
+                timeout_ledger: None,
             };
 
             // This will succeed because mock_all_auths() is called
@@ -87,6 +88,7 @@ mod test {
                 status: EscrowStatus::Created,
                 deadline: 0,
                 mediator: soroban_sdk::Address::generate(&env),
+                timeout_ledger: None,
             };
 
             // This will panic because no auths are mocked
