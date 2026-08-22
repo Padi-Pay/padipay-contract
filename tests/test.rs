@@ -1042,3 +1042,36 @@ fn test_pause_unauthorized() {
     setup.client.initialize(&admin);
     setup.client.pause();
 }
+
+#[test]
+fn test_update_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    setup.client.initialize(&admin);
+
+    // Update admin
+    setup.client.update_admin(&new_admin);
+
+    env.as_contract(&setup.contract_id, || {
+        let current_admin = soroban_escrow_contracts::storage::read_admin(&env).unwrap();
+        assert_eq!(current_admin, new_admin);
+    });
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Auth, InvalidAction)")]
+fn test_update_admin_unauthorized() {
+    let env = Env::default();
+    let setup = setup_test(&env);
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    setup.client.initialize(&admin);
+
+    // Without auth, this should fail
+    setup.client.update_admin(&new_admin);
+}

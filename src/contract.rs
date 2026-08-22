@@ -25,6 +25,14 @@ impl PadiPayEscrowContract {
         Ok(())
     }
 
+    /// Updates the admin address.
+    pub fn update_admin(env: Env, new_admin: Address) -> Result<(), Error> {
+        let admin = read_admin(&env)?;
+        admin.require_auth();
+        write_admin(&env, &new_admin);
+        Ok(())
+    }
+
     /// Pauses the contract, preventing new escrows from being created.
     pub fn pause(env: Env) -> Result<(), Error> {
         let admin = read_admin(&env)?;
