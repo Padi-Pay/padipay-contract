@@ -1173,3 +1173,109 @@ fn test_create_escrow_timeout_past_ledger() {
         &timeout,
     );
 }
+
+#[test]
+fn test_refund_expired_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+
+    env.ledger().set_sequence_number(100);
+
+    let amount = 1000;
+    let timeout = Some(150);
+
+    setup.token_client.mint(&setup.buyer, &10000);
+
+    let escrow_id = setup.client.create_escrow(
+        &setup.buyer,
+        &setup.seller,
+        &setup.token,
+        &amount,
+        &0,
+        &setup.token_admin,
+        &timeout,
+    );
+
+    setup.client.lock_funds(&escrow_id);
+
+    // Fast forward ledger past timeout
+    env.ledger().set_sequence_number(151);
+
+    setup.client.refund_expired(&escrow_id);
+
+    assert_eq!(setup.token_client_basic.balance(&setup.contract_id), 0);
+    assert_eq!(setup.token_client_basic.balance(&setup.buyer), 10000);
+
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::storage::read_escrow_state(&env, escrow_id).unwrap();
+        assert_eq!(
+            state.status,
+            soroban_escrow_contracts::types::EscrowStatus::Refunded
+        );
+    });
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #7)")]
+fn test_refund_expired_before_deadline() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+
+    env.ledger().set_sequence_number(100);
+
+    let amount = 1000;
+    let timeout = Some(150);
+
+    setup.token_client.mint(&setup.buyer, &10000);
+
+    let escrow_id = setup.client.create_escrow(
+        &setup.buyer,
+        &setup.seller,
+        &setup.token,
+        &amount,
+        &0,
+        &setup.token_admin,
+        &timeout,
+    );
+
+    setup.client.lock_funds(&escrow_id);
+
+    // Ledger sequence not past timeout
+    env.ledger().set_sequence_number(150);
+
+    setup.client.refund_expired(&escrow_id);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Auth, InvalidAction)")]
+fn test_refund_expired_unauthorized() {
+    let env = Env::default();
+    let setup = setup_test(&env);
+
+    env.ledger().set_sequence_number(100);
+
+    let timeout = Some(150);
+
+    // Mint tokens manually using as_contract for unauthorized setup, or we can just create EscrowState directly
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::types::EscrowState {
+            buyer: setup.buyer.clone(),
+            seller: setup.seller.clone(),
+            token: setup.token.clone(),
+            amount: 1000,
+            status: soroban_escrow_contracts::types::EscrowStatus::Locked,
+            deadline: 0,
+            mediator: setup.token_admin.clone(),
+            timeout_ledger: timeout,
+        };
+        soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
+    });
+
+    // Fast forward ledger past timeout
+    env.ledger().set_sequence_number(151);
+
+    // Call without auth
+    setup.client.refund_expired(&0);
+}
