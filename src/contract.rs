@@ -158,6 +158,32 @@ impl PadiPayEscrowContract {
         Ok(())
     }
 
+    /// Refunds expired funds back to the buyer based on timeout_ledger.
+    pub fn refund_expired(env: Env, escrow_id: EscrowId) -> Result<(), Error> {
+        let mut state = require_escrow(&env, escrow_id)?;
+
+        state.buyer.require_auth();
+
+        let timeout = state.timeout_ledger.ok_or(Error::InvalidState)?;
+        if env.ledger().sequence() <= timeout {
+            return Err(Error::DeadlineNotReached);
+        }
+
+        require_valid_transition(&state, &EscrowStatus::Refunded)?;
+
+        let token_client = crate::token::get_token_client(&env, &state.token);
+
+        // Transfer from contract back to buyer
+        token_client.transfer(&env.current_contract_address(), &state.buyer, &state.amount);
+
+        state.status = EscrowStatus::Refunded;
+        write_escrow_state(&env, escrow_id, &state);
+
+        publish_escrow_refunded(&env, escrow_id, &state);
+
+        Ok(())
+    }
+
     /// Executes a timeout if the deadline has passed, refunding the buyer.
     pub fn execute_timeout(env: Env, escrow_id: EscrowId) -> Result<(), Error> {
         let mut state = require_escrow(&env, escrow_id)?;
