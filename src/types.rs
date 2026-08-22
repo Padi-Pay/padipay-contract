@@ -85,4 +85,5 @@ pub struct EscrowState {
     pub status: EscrowStatus,
     pub deadline: u64,
     pub mediator: Address,
+    pub timeout_ledger: Option<u32>,
 }

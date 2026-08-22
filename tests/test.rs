@@ -56,6 +56,7 @@ fn test_create_escrow() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     let events = env.events().all();
@@ -105,6 +106,7 @@ fn test_create_escrow_unauthorized() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 }
 
@@ -123,6 +125,7 @@ fn test_create_escrow_invalid_amount() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 }
 
@@ -142,6 +145,7 @@ fn test_create_escrow_invalid_addresses() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 }
 
@@ -164,6 +168,7 @@ fn test_lock_funds() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     // Lock funds
@@ -218,6 +223,7 @@ fn test_lock_funds_already_funded() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
     setup.client.lock_funds(&escrow_id);
 
@@ -243,6 +249,7 @@ fn test_release_funds() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     // Lock funds
@@ -300,6 +307,7 @@ fn test_release_funds_already_released() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
     setup.client.lock_funds(&escrow_id);
     setup.client.release_funds(&escrow_id);
@@ -326,6 +334,7 @@ fn test_refund() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
     setup.client.lock_funds(&escrow_id);
 
@@ -384,6 +393,7 @@ fn test_refund_already_released() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
     setup.client.lock_funds(&escrow_id);
     setup.client.release_funds(&escrow_id);
@@ -410,6 +420,7 @@ fn test_resolve_dispute() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     setup.client.lock_funds(&escrow_id);
@@ -445,6 +456,7 @@ fn test_resolve_dispute() {
         &amount2,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     setup.client.lock_funds(&escrow_id_2);
@@ -489,6 +501,7 @@ fn test_escrow_lifecycle_happy_path_release() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     let events = env.events().all().filter_by_contract(&setup.contract_id);
@@ -607,6 +620,7 @@ fn test_escrow_lifecycle_happy_path_refund() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     env.as_contract(&setup.contract_id, || {
@@ -678,6 +692,7 @@ fn test_lock_funds_unauthorized() {
             status: soroban_escrow_contracts::types::EscrowStatus::Created,
             deadline: 0,
             mediator: setup.token_admin.clone(),
+            timeout_ledger: None,
         };
         soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
     });
@@ -701,6 +716,7 @@ fn test_release_funds_unauthorized() {
             status: soroban_escrow_contracts::types::EscrowStatus::Locked,
             deadline: 0,
             mediator: setup.token_admin.clone(),
+            timeout_ledger: None,
         };
         soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
     });
@@ -724,6 +740,7 @@ fn test_refund_unauthorized() {
             status: soroban_escrow_contracts::types::EscrowStatus::Locked,
             deadline: 0,
             mediator: setup.token_admin.clone(),
+            timeout_ledger: None,
         };
         soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
     });
@@ -746,6 +763,7 @@ fn test_release_funds_invalid_state() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     // Try to release while still 'Created' (invalid state)
@@ -767,6 +785,7 @@ fn test_refund_invalid_state() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     // Try to refund while still 'Created' (invalid state)
@@ -791,6 +810,7 @@ fn test_multiple_concurrent_escrows() {
         &amount1,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     // Create Escrow 2
@@ -802,6 +822,7 @@ fn test_multiple_concurrent_escrows() {
         &amount2,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     // Validate unique IDs
@@ -856,6 +877,7 @@ fn test_execute_timeout_success() {
         &amount,
         &deadline,
         &setup.token_admin,
+        &None,
     );
 
     setup.client.lock_funds(&escrow_id);
@@ -892,6 +914,7 @@ fn test_execute_timeout_before_deadline() {
         &amount,
         &deadline,
         &setup.token_admin,
+        &None,
     );
 
     setup.client.lock_funds(&escrow_id);
@@ -919,6 +942,7 @@ fn test_execute_timeout_after_release() {
         &amount,
         &deadline,
         &setup.token_admin,
+        &None,
     );
 
     setup.client.lock_funds(&escrow_id);
@@ -950,6 +974,7 @@ fn test_resolve_dispute_unauthorized() {
             status: soroban_escrow_contracts::types::EscrowStatus::Locked,
             deadline: 0,
             mediator: setup.token_admin.clone(),
+            timeout_ledger: None,
         };
         soroban_escrow_contracts::storage::write_escrow_state(&env, 0, &state);
     });
@@ -977,6 +1002,7 @@ fn test_resolve_dispute_invalid_outcome() {
         &amount,
         &0,
         &setup.token_admin,
+        &None,
     );
 
     setup.client.lock_funds(&escrow_id);
@@ -1028,6 +1054,7 @@ fn test_create_escrow_when_paused() {
         &1000,
         &0,
         &setup.token_admin,
+        &None,
     );
 }
 
@@ -1074,4 +1101,75 @@ fn test_update_admin_unauthorized() {
 
     // Without auth, this should fail
     setup.client.update_admin(&new_admin);
+}
+
+#[test]
+fn test_create_escrow_valid_timeout() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+
+    env.ledger().set_sequence_number(100);
+
+    let amount = 1000;
+    let timeout = Some(150);
+
+    let escrow_id = setup.client.create_escrow(
+        &setup.buyer,
+        &setup.seller,
+        &setup.token,
+        &amount,
+        &0,
+        &setup.token_admin,
+        &timeout,
+    );
+
+    env.as_contract(&setup.contract_id, || {
+        let state = soroban_escrow_contracts::storage::read_escrow_state(&env, escrow_id).unwrap();
+        assert_eq!(state.timeout_ledger, timeout);
+    });
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #11)")]
+fn test_create_escrow_timeout_equal_ledger() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+
+    env.ledger().set_sequence_number(100);
+    let amount = 1000;
+    let timeout = Some(100);
+
+    setup.client.create_escrow(
+        &setup.buyer,
+        &setup.seller,
+        &setup.token,
+        &amount,
+        &0,
+        &setup.token_admin,
+        &timeout,
+    );
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #11)")]
+fn test_create_escrow_timeout_past_ledger() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+
+    env.ledger().set_sequence_number(100);
+    let amount = 1000;
+    let timeout = Some(50);
+
+    setup.client.create_escrow(
+        &setup.buyer,
+        &setup.seller,
+        &setup.token,
+        &amount,
+        &0,
+        &setup.token_admin,
+        &timeout,
+    );
 }

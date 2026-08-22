@@ -74,7 +74,8 @@
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                }
+                },
+                "void"
               ]
             }
           },
@@ -268,6 +269,12 @@
                         }
                       ]
                     }
+                  },
+                  {
+                    "key": {
+                      "symbol": "timeout_ledger"
+                    },
+                    "val": "void"
                   },
                   {
                     "key": {
