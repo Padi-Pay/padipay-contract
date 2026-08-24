@@ -259,7 +259,6 @@ fn test_resolve_dispute_correct_auth() {
     let setup = setup_test(&env);
 
     let buyer = Address::generate(&env);
-    let token = Address::generate(&env);
     let mediator = Address::generate(&env);
     let escrow_id = 1u64;
     let outcome = Symbol::new(&env, "refund_buyer");
