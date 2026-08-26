@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build_and_release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32v1-none
+
+      - name: Install wasm-opt (binaryen)
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+
+      - name: Build Contract (WASM)
+        run: cargo build --target wasm32v1-none --release
+
+      - name: Optimize WASM
+        run: |
+          wasm-opt -Oz \
+            target/wasm32v1-none/release/soroban_escrow_contracts.wasm \
+            -o target/wasm32v1-none/release/soroban_escrow_contracts_optimized.wasm
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: target/wasm32v1-none/release/soroban_escrow_contracts_optimized.wasm
