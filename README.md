@@ -43,20 +43,43 @@ It supports:
 
 ## Escrow Lifecycle
 
-Below is the current lifecycle of an escrow. Note that the contract manages many escrows simultaneously, and this lifecycle applies independently to each unique escrow agreement:
+The escrow is a strict state machine. It starts as a simple linear path (`Created → Locked`), then **branches** at `Locked`: the funds can move to the seller (`Released`) or back to the buyer (`Refunded`) through five different entrypoints, each with its own authorization and timing conditions. Every branch is gated by `EscrowStatus::is_valid_transition` and the guards in `src/validation.rs` / `src/contract.rs`.
+
+Note that the contract manages many escrows simultaneously, and this lifecycle applies independently to each unique escrow agreement.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Created : Buyer Creates Escrow
-    Created --> Locked : Buyer Locks Funds
-    Locked --> Released : Released to Seller
-    Locked --> Refunded : Refunded to Buyer
-    Locked --> Refunded : execute_timeout()
-    Locked --> Released : resolve_dispute("pay_seller")
-    Locked --> Refunded : resolve_dispute("refund_buyer")
+    [*] --> Created : create_escrow (buyer)
+    Created --> Locked : lock_funds (buyer, status must be Created)
+
+    Locked --> Released : release_funds (buyer)
+    Locked --> Refunded : refund (seller)
+    Locked --> Refunded : execute_timeout (permissionless, ledger timestamp past deadline)
+    Locked --> Refunded : refund_expired (buyer, ledger sequence past timeout_ledger)
+    Locked --> Released : resolve_dispute pay_seller (mediator)
+    Locked --> Refunded : resolve_dispute refund_buyer (mediator)
+
     Released --> [*]
     Refunded --> [*]
+
+    note right of Locked
+        Locked is the only branching state.
+        Released and Refunded are terminal.
+    end note
 ```
+
+### Branches out of `Locked`
+
+| Entrypoint | Authorized by | Condition (see `src/contract.rs`) | Result |
+| :--- | :--- | :--- | :--- |
+| `release_funds` | Buyer | Happy path — buyer is satisfied | `Released` |
+| `refund` | Seller | Happy path — seller cannot fulfil the order | `Refunded` |
+| `execute_timeout` | Anyone (permissionless) | `env.ledger().timestamp() > deadline`, else `DeadlineNotReached` | `Refunded` |
+| `refund_expired` | Buyer | `timeout_ledger` is `Some` (else `InvalidState`) **and** `env.ledger().sequence() > timeout_ledger` (else `DeadlineNotReached`) | `Refunded` |
+| `resolve_dispute` | Mediator | `outcome == "pay_seller"` | `Released` |
+| `resolve_dispute` | Mediator | `outcome == "refund_buyer"` (any other symbol → `InvalidState`) | `Refunded` |
+
+> `execute_timeout` keys off the wall-clock `deadline` (ledger **timestamp**), while `refund_expired` keys off the `timeout_ledger` (ledger **sequence number**). They are independent expiry mechanisms.
 
 ## Architecture Overview
 
