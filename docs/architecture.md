@@ -19,25 +19,30 @@ Every escrow created on the PadiPay contract must strictly adhere to the defined
 
 ### 2.1 The Complete State Flow
 
-```text
-       ┌───────────────┐
-       │               │
-       ▼               │
-   [Created]           │
-       │               │ (execute_timeout)
-   (lock_funds)        │
-       │               │
-       ▼               │
-   [Locked] ───────────┘
-       │
-       ├───────────────────┐
-       │                   │
-  (release_funds)      (refund) / (resolve_dispute)
-       │                   │
-       ▼                   ▼
-  [Released]           [Refunded]
- (Terminal)            (Terminal)
+The lifecycle is linear until `Locked`, then branches. `Locked` is the only state
+with multiple outgoing transitions; `Released` and `Refunded` are terminal.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created : create_escrow (buyer)
+    Created --> Locked : lock_funds (buyer)
+
+    Locked --> Released : release_funds (buyer)
+    Locked --> Released : resolve_dispute pay_seller (mediator)
+
+    Locked --> Refunded : refund (seller)
+    Locked --> Refunded : execute_timeout (permissionless, deadline passed)
+    Locked --> Refunded : refund_expired (buyer, timeout_ledger passed)
+    Locked --> Refunded : resolve_dispute refund_buyer (mediator)
+
+    Released --> [*]
+    Refunded --> [*]
 ```
+
+Only three transitions are legal in `EscrowStatus::is_valid_transition`
+(`Created → Locked`, `Locked → Released`, `Locked → Refunded`); the six labelled
+edges out of `Locked` above are the six entrypoints that each drive one of those
+two branch transitions.
 
 ### 2.2 Valid Transitions
 
@@ -66,15 +71,51 @@ Every escrow created on the PadiPay contract must strictly adhere to the defined
 
 ## 3. Advanced Flows
 
-### 3.1 Timeout Flow (`execute_timeout`)
-- **Condition:** Escrow is `Locked` AND `env.ledger().timestamp() > deadline`.
-- **Authorized by:** Buyer (or theoretically anyone, since it's deterministic based on time).
-- **Why it exists:** Without expirations, an unresponsive seller could trap the buyer's funds in the contract indefinitely. The deadline enforces a strict timeline for delivery.
+Beyond the happy path (`release_funds` / `refund`), a `Locked` escrow has three
+non-cooperative exits: a wall-clock timeout, a ledger-sequence timeout, and a
+mediated dispute. The diagram below maps each guard exactly as implemented in
+`src/contract.rs`. A failed guard leaves the escrow in `Locked` (the call reverts
+with the noted `Error`); it never advances the state.
+
+```mermaid
+flowchart TD
+    L["Escrow is Locked"]
+
+    L -->|"execute_timeout()"| T1{"ledger timestamp &gt; deadline?"}
+    T1 -->|no| E1["revert: DeadlineNotReached"]
+    T1 -->|yes| REF["Refunded (buyer repaid)"]
+
+    L -->|"refund_expired()<br/>buyer auth"| T2{"timeout_ledger is Some?"}
+    T2 -->|no| E2["revert: InvalidState"]
+    T2 -->|yes| T3{"ledger sequence &gt; timeout_ledger?"}
+    T3 -->|no| E3["revert: DeadlineNotReached"]
+    T3 -->|yes| REF
+
+    L -->|"resolve_dispute(outcome)<br/>mediator auth"| D1{"outcome value"}
+    D1 -->|"refund_buyer"| REF
+    D1 -->|"pay_seller"| REL["Released (seller paid)"]
+    D1 -->|"anything else"| E4["revert: InvalidState"]
+
+    E1 --> L
+    E2 --> L
+    E3 --> L
+    E4 --> L
+```
+
+### 3.1 Wall-Clock Timeout (`execute_timeout`)
+- **Condition:** `env.ledger().timestamp() > state.deadline`, otherwise `DeadlineNotReached`.
+- **Authorized by:** No `require_auth` — the call is **permissionless**, since the outcome is fully determined by ledger time and always favours the buyer.
+- **Why it exists:** Without expirations, an unresponsive seller could trap the buyer's funds in the contract indefinitely. The `deadline` enforces a strict timeline for delivery.
 
 ### 3.2 Dispute Flow (`resolve_dispute`)
-- **Condition:** Escrow is `Locked`.
+- **Condition:** Escrow is `Locked` (enforced by `is_valid_transition`). The `outcome` symbol must be exactly `pay_seller` (→ `Released`) or `refund_buyer` (→ `Refunded`); any other value reverts with `InvalidState`.
 - **Authorized by:** The specific `mediator` address assigned at creation.
 - **Why it exists:** If the buyer and seller cannot agree on a release or refund, the designated mediator has the ultimate authority to parse the dispute outcome and route funds to either the buyer (`Refunded`) or the seller (`Released`).
+
+### 3.3 Ledger-Sequence Timeout (`refund_expired`)
+- **Condition:** `state.timeout_ledger` must be `Some` (otherwise `InvalidState`) **and** `env.ledger().sequence() > timeout_ledger` (otherwise `DeadlineNotReached`).
+- **Authorized by:** Buyer (`state.buyer.require_auth()`).
+- **Why it exists:** `timeout_ledger` is an optional expiry set at creation (`create_escrow` rejects a value that is not strictly in the future). It is measured in **ledger sequence numbers** rather than wall-clock time, giving the relayer a deterministic, block-height-based refund path that is independent of `deadline`.
 
 ---
 
@@ -88,7 +129,8 @@ The contract validates authorization via Soroban's native `require_auth()` and s
 | `lock_funds` | Buyer | The buyer must cryptographically sign the actual token transfer to the contract. |
 | `release_funds` | Buyer | Only the buyer can unilaterally decide they are satisfied and pay the seller. |
 | `refund` | Seller | The seller can unilaterally decide to refund the buyer if they cannot fulfill the order. |
-| `execute_timeout`| Buyer | Once the deadline passes, the buyer is entitled to recover their funds. |
+| `execute_timeout`| None (permissionless) | The outcome is fixed by ledger time and always refunds the buyer, so anyone may trigger it once `deadline` passes. |
+| `refund_expired` | Buyer | Once the `timeout_ledger` sequence passes, the buyer is entitled to recover their funds. |
 | `resolve_dispute`| Mediator | Only the trusted third-party can force a resolution during a conflict. |
 
 ---
