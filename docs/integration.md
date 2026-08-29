@@ -252,3 +252,17 @@ All events are published with a topic tuple:
 | `FundsLocked` | `(Symbol, escrow_id, buyer, seller)` | `amount: i128` |
 | `FundsReleased` | `(Symbol, escrow_id, buyer, seller)` | `amount: i128` |
 | `EscrowRefunded` | `(Symbol, escrow_id, buyer, seller)` | `amount: i128` |
+
+### Topic Indexing (Relayer Queries)
+
+`buyer` and `seller` are promoted into the searchable topic array for
+`EscrowCreated` and `EscrowRefunded`. Off-chain indexers can therefore filter
+events natively via RPC on either participant address without parsing the data
+payload.
+
+- **Topic order:** `Symbol`, `escrow_id`, `buyer`, `seller`.
+- **Topic count:** always 4 — within Soroban's max of 4 topic values.
+- **Data payload:** unchanged, still the `amount: i128`.
+
+Example RPC topic filter for a seller (`EscrowCreated`): topics `[0]` starts
+with the `EscrowCreated` symbol and topics `[3]` equals the seller address.
