@@ -244,11 +244,56 @@ Created ──► Locked ──► Released
 
 ## Events
 
-All events are published with a topic tuple:
+Every event is published with a topic tuple whose **second topic is the schema
+version symbol** (`v1`), placed directly after the event-name symbol:
 
 | Event | Topics | Data |
 |---|---|---|
-| `EscrowCreated` | `(Symbol, escrow_id, buyer, seller)` | `amount: i128` |
-| `FundsLocked` | `(Symbol, escrow_id, buyer, seller)` | `amount: i128` |
-| `FundsReleased` | `(Symbol, escrow_id, buyer, seller)` | `amount: i128` |
-| `EscrowRefunded` | `(Symbol, escrow_id, buyer, seller)` | `amount: i128` |
+| `EscrowCreated` | `(Symbol("EscrowCreated"), Symbol("v1"), escrow_id, buyer, seller)` | `amount: i128` |
+| `FundsLocked` | `(Symbol("FundsLocked"), Symbol("v1"), escrow_id, buyer, seller)` | `amount: i128` |
+| `FundsReleased` | `(Symbol("FundsReleased"), Symbol("v1"), escrow_id, buyer, seller)` | `amount: i128` |
+| `EscrowRefunded` | `(Symbol("EscrowRefunded"), Symbol("v1"), escrow_id, buyer, seller)` | `amount: i128` |
+
+### Schema versioning strategy
+
+Off-chain indexers subscribe to Soroban events by matching topic filters. To
+keep indexers from silently misinterpreting an event whose shape has changed,
+the contract stamps a schema version into the topics of **every** event.
+
+- **Where:** `topics[1]`, immediately after the event-name symbol. The value is
+  a `Symbol` — currently `Symbol::new(env, "v1")`, exported from the contract as
+  `events::EVENT_SCHEMA_VERSION`.
+- **What "the schema" covers:** the full topic tuple *and* the data payload of
+  an event. Any backward-incompatible change to either — adding a topic,
+  reordering topics, changing the data type, or changing the meaning of an
+  existing field (e.g. splitting `amount` into `amount` + `fee`) — requires a
+  new version symbol (`v2`, `v3`, …).
+- **What does *not* bump the version:** adding a brand-new event type, or a
+  purely additive change that older indexers can safely ignore and that does not
+  move any existing topic or data field.
+
+#### How indexers filter by version
+
+Because the version is a topic, indexers can pin the exact schema they
+understand with a topic filter and ignore everything else. Using a Soroban RPC
+`getEvents` topic filter, each slot is the base64 XDR of the `ScVal` to match,
+or `"*"` as a single-slot wildcard:
+
+```
+slot 0: ScVal::Symbol("EscrowCreated")   # event name — exact match
+slot 1: ScVal::Symbol("v1")              # schema version — exact match
+slot 2: "*"                              # escrow_id
+slot 3: "*"                              # buyer
+slot 4: "*"                              # seller
+```
+
+Recommended indexer behaviour:
+
+1. Match `topics[0]` (event name) and `topics[1]` (version) explicitly.
+2. If `topics[1]` is a version the indexer does not know, **skip and log** the
+   event rather than parsing it against an assumed layout.
+3. When a `v2` schema ships, run the `v1` and `v2` decoders side by side until
+   the backfill/reindex completes, then retire the `v1` path.
+
+Migrating the indexer database itself (adding columns, re-indexing history) is
+out of scope for the contract and owned by the Relayer/indexer team.
