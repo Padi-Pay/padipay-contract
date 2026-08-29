@@ -88,7 +88,7 @@ The contract follows a modular architecture organized into several logical layer
 - **Storage Layer:** Manages persistent contract state per escrow using the Soroban SDK.
 - **Authentication Layer:** Ensures only authorized roles (Buyer, Seller, Mediator) can perform sensitive actions.
 - **Token Layer:** Safely manages locking, releasing, and refunding Stellar assets.
-- **Event Layer:** Publishes key lifecycle events (e.g., `EscrowCreated`, `FundsLocked`) for off-chain applications.
+- **Event Layer:** Publishes key lifecycle events (e.g., `EscrowCreated`, `FundsLocked`) for off-chain applications. Every event carries a schema version symbol (`v1`) as its second topic so indexers can filter by schema.
 - **Admin Layer:** Provides emergency controls (`pause`, `unpause`) to mitigate zero-day risks.
 
 For an in-depth look at the architecture, please see the [Architecture Document](docs/architecture.md).
