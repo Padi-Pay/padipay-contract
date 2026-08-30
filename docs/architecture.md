@@ -169,3 +169,14 @@ The contract emits structured events to allow off-chain applications (e.g., the 
 - `EscrowRefunded`: Emitted on a successful refund to the buyer (via happy path, timeout, or dispute).
 
 All events include the `EscrowId`, `buyer`, and `seller` to facilitate efficient off-chain indexing and notification routing.
+
+### Schema Versioning
+
+Every event carries a schema version symbol as its **second topic**, directly
+after the event name (currently `Symbol::new(env, "v1")`, exported as
+`events::EVENT_SCHEMA_VERSION`). If the topic tuple or data payload of an event
+ever changes in a backward-incompatible way, the version symbol is bumped
+(`v2`, `v3`, …) so off-chain indexers can filter by the exact schema they
+understand and skip — rather than silently misparse — events they do not. See
+[`integration.md`](./integration.md#schema-versioning-strategy) for the full
+strategy and indexer guidance.

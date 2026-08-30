@@ -1,6 +1,8 @@
 #![cfg(test)]
 
-use soroban_escrow_contracts::{PadiPayEscrowContract, PadiPayEscrowContractClient};
+use soroban_escrow_contracts::{
+    events::EVENT_SCHEMA_VERSION, PadiPayEscrowContract, PadiPayEscrowContractClient,
+};
 use soroban_sdk::{
     testutils::{Address as _, Events, Ledger},
     vec, Address, Env, IntoVal, Symbol,
@@ -68,6 +70,7 @@ fn test_create_escrow() {
                 setup.contract_id.clone(),
                 (
                     Symbol::new(&env, "EscrowCreated"),
+                    Symbol::new(&env, EVENT_SCHEMA_VERSION),
                     escrow_id,
                     setup.buyer.clone(),
                     setup.seller.clone()
@@ -89,6 +92,61 @@ fn test_create_escrow() {
             soroban_escrow_contracts::types::EscrowStatus::Created
         );
     });
+}
+
+/// Every lifecycle event must carry the schema version (`v1`) as its second
+/// topic, directly after the event name, so off-chain indexers can filter
+/// events by the payload shape they understand.
+#[test]
+fn test_events_carry_schema_version() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let setup = setup_test(&env);
+    let amount = 1000;
+
+    setup.token_client.mint(&setup.buyer, &amount);
+
+    // The schema version symbol is the second topic of every event, directly
+    // after the event name, so an indexer can subscribe with a
+    // `(event_name, version)` topic filter.
+    let v = Symbol::new(&env, EVENT_SCHEMA_VERSION);
+    let expect_versioned_event = |name: &str, escrow_id: u64| {
+        assert_eq!(
+            env.events().all().filter_by_contract(&setup.contract_id),
+            vec![
+                &env,
+                (
+                    setup.contract_id.clone(),
+                    (
+                        Symbol::new(&env, name),
+                        v.clone(),
+                        escrow_id,
+                        setup.buyer.clone(),
+                        setup.seller.clone()
+                    )
+                        .into_val(&env),
+                    amount.into_val(&env)
+                )
+            ]
+        );
+    };
+
+    let escrow_id = setup.client.create_escrow(
+        &setup.buyer,
+        &setup.seller,
+        &setup.token,
+        &amount,
+        &0,
+        &setup.token_admin,
+        &None,
+    );
+    expect_versioned_event("EscrowCreated", escrow_id);
+
+    setup.client.lock_funds(&escrow_id);
+    expect_versioned_event("FundsLocked", escrow_id);
+
+    setup.client.release_funds(&escrow_id);
+    expect_versioned_event("FundsReleased", escrow_id);
 }
 
 #[test]
@@ -183,6 +241,7 @@ fn test_lock_funds() {
                 setup.contract_id.clone(),
                 (
                     Symbol::new(&env, "FundsLocked"),
+                    Symbol::new(&env, EVENT_SCHEMA_VERSION),
                     escrow_id,
                     setup.buyer.clone(),
                     setup.seller.clone()
@@ -267,6 +326,7 @@ fn test_release_funds() {
                 setup.contract_id.clone(),
                 (
                     Symbol::new(&env, "FundsReleased"),
+                    Symbol::new(&env, EVENT_SCHEMA_VERSION),
                     escrow_id,
                     setup.buyer.clone(),
                     setup.seller.clone()
@@ -353,6 +413,7 @@ fn test_refund() {
                 setup.contract_id.clone(),
                 (
                     Symbol::new(&env, "EscrowRefunded"),
+                    Symbol::new(&env, EVENT_SCHEMA_VERSION),
                     escrow_id,
                     setup.buyer.clone(),
                     setup.seller.clone()
@@ -513,6 +574,7 @@ fn test_escrow_lifecycle_happy_path_release() {
                 setup.contract_id.clone(),
                 (
                     Symbol::new(&env, "EscrowCreated"),
+                    Symbol::new(&env, EVENT_SCHEMA_VERSION),
                     escrow_id,
                     setup.buyer.clone(),
                     setup.seller.clone()
@@ -547,6 +609,7 @@ fn test_escrow_lifecycle_happy_path_release() {
                 setup.contract_id.clone(),
                 (
                     Symbol::new(&env, "FundsLocked"),
+                    Symbol::new(&env, EVENT_SCHEMA_VERSION),
                     escrow_id,
                     setup.buyer.clone(),
                     setup.seller.clone()
@@ -580,6 +643,7 @@ fn test_escrow_lifecycle_happy_path_release() {
                 setup.contract_id.clone(),
                 (
                     Symbol::new(&env, "FundsReleased"),
+                    Symbol::new(&env, EVENT_SCHEMA_VERSION),
                     escrow_id,
                     setup.buyer.clone(),
                     setup.seller.clone()
@@ -654,6 +718,7 @@ fn test_escrow_lifecycle_happy_path_refund() {
                 setup.contract_id.clone(),
                 (
                     Symbol::new(&env, "EscrowRefunded"),
+                    Symbol::new(&env, EVENT_SCHEMA_VERSION),
                     escrow_id,
                     setup.buyer.clone(),
                     setup.seller.clone()

@@ -5,6 +5,16 @@ All notable changes to the PadiPay Soroban Escrow Contracts will be documented i
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Event Schema Versioning**: Every contract event now emits a schema version
+  symbol (`v1`) as its second topic, directly after the event name. Off-chain
+  indexers can filter by `(event_name, version)` and skip events whose schema
+  they do not recognise instead of silently misparsing them. The version is
+  exported as `events::EVENT_SCHEMA_VERSION`; the strategy is documented in
+  `docs/integration.md`.
+
 ## [0.1.0] - 2026-07-10
 
 ### Added
