@@ -17,3 +17,5 @@ fix.md
 
 
 test_snapshots/
+config.bat
+node_modules
