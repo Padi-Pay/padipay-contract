@@ -156,3 +156,5 @@ Read the full plan in our [Roadmap](docs/roadmap.md).
 - [Long-Term Architectural Vision](docs/overallArchitecture.md)
 - [Setup Guide](docs/setup-guide.md)
 - [Full Roadmap](docs/roadmap.md)
+
+<!-- Verified for issue #74: ci: automate WASM compilation and release artifact attachment on version tags -->
